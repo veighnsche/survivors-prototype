@@ -47,7 +47,9 @@ func _refresh() -> void:
 func _make(c: Vector2i, cell: float):
 	if c == Vector2i(0, 0):
 		return null  # keep the spawn point clear
-	var h := hash("obs:%d:%d:%d" % [world_seed, c.x, c.y])
+	# Vector3i hash avalanches each component — adjacent cells get uncorrelated
+	# values (a string hash made consecutive cells line up).
+	var h := hash(Vector3i(world_seed, c.x, c.y))
 	if posmod(h, 100) >= int(Config.OBSTACLE_DENSITY):
 		return null
 	var ox := float(posmod(h >> 7, 220)) - 110.0

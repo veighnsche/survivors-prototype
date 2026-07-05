@@ -57,8 +57,9 @@ func on_collected(c: Vector2i) -> void:
 func _make(c: Vector2i, cell: float):
 	if c == Vector2i(0, 0):
 		return null  # keep the spawn point clear
-	# Per-run seed + a "loot" salt so it varies each run and differs from buildings.
-	var h := hash("loot:%d:%d:%d" % [world_seed, c.x, c.y])
+	# Vector3i hash avalanches each component (a string hash made consecutive cells
+	# line up). XOR-salt the seed so loot differs from the building layout.
+	var h := hash(Vector3i(world_seed ^ 0x1B873593, c.x, c.y))
 	if posmod(h, 100) >= int(Config.LOOT_DENSITY):
 		return null
 
