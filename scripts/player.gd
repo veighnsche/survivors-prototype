@@ -1,0 +1,306 @@
+class_name Player
+extends CharacterBody2D
+## The controllable character. Moves via WASD / arrows / left stick, auto-fires
+## at the nearest enemy, takes contact damage on a tick, and hosts the two
+## fork abilities: Orbiting Blades and Damage Aura.
+
+signal died
+
+@export var max_hp := 100.0
+var hp := 100.0
+var speed := 210.0
+var radius := 13.0
+var color := Color(0.35, 0.76, 0.96)
+
+# Auto-attack
+var attack_interval := 0.5
+var attack_timer := 0.0
+var projectile_damage := 4.0
+var projectile_speed := 520.0
+var projectile_range := 950.0
+var projectile_count := 1
+var projectile_parent: Node
+
+# Pickups
+var pickup_radius := 72.0
+
+# Contact damage
+var contact_tick := 0.5
+var contact_timer := 0.0
+
+# Abilities
+var blades_level := 0
+var _blades: Array = []
+var _blade_angle := 0.0
+
+var aura_level := 0
+var aura: Area2D
+var aura_shape: CircleShape2D
+var aura_radius := 0.0
+var aura_timer := 0.0
+var _aura_enemies: Dictionary = {}
+
+var dead := false
+var _overlapping: Dictionary = {}
+
+
+func _ready() -> void:
+	hp = max_hp
+	z_index = 10
+	collision_layer = 1
+	collision_mask = 0
+
+	var hurtbox := Area2D.new()
+	hurtbox.collision_layer = 4
+	hurtbox.collision_mask = 2
+	var cs := CollisionShape2D.new()
+	var shape := CircleShape2D.new()
+	shape.radius = radius
+	cs.shape = shape
+	hurtbox.add_child(cs)
+	add_child(hurtbox)
+	hurtbox.area_entered.connect(_on_hurt_area_entered)
+	hurtbox.area_exited.connect(_on_hurt_area_exited)
+
+	queue_redraw()
+
+
+func _physics_process(_delta: float) -> void:
+	if dead:
+		return
+	velocity = _input_vector() * speed
+	move_and_slide()
+
+
+func _process(delta: float) -> void:
+	if dead:
+		return
+	_handle_attack(delta)
+	_handle_contact(delta)
+	_handle_blades(delta)
+	_handle_aura(delta)
+
+
+# --- Input ------------------------------------------------------------------
+func _input_vector() -> Vector2:
+	var v := Vector2.ZERO
+	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
+		v.y -= 1.0
+	if Input.is_physical_key_pressed(KEY_S) or Input.is_physical_key_pressed(KEY_DOWN):
+		v.y += 1.0
+	if Input.is_physical_key_pressed(KEY_A) or Input.is_physical_key_pressed(KEY_LEFT):
+		v.x -= 1.0
+	if Input.is_physical_key_pressed(KEY_D) or Input.is_physical_key_pressed(KEY_RIGHT):
+		v.x += 1.0
+	var gp := Vector2(Input.get_joy_axis(0, JOY_AXIS_LEFT_X), Input.get_joy_axis(0, JOY_AXIS_LEFT_Y))
+	if gp.length() > 0.25:
+		v = gp
+	return v.limit_length(1.0)
+
+
+# --- Auto-attack ------------------------------------------------------------
+func _handle_attack(delta: float) -> void:
+	attack_timer -= delta
+	if attack_timer > 0.0:
+		return
+	var target := _nearest_enemy()
+	if target == null:
+		attack_timer = 0.1
+		return
+	attack_timer = attack_interval
+	_fire_at(target)
+
+
+func _nearest_enemy() -> Node2D:
+	var best: Node2D = null
+	var best_d := projectile_range * projectile_range
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var d: float = global_position.distance_squared_to(e.global_position)
+		if d < best_d:
+			best_d = d
+			best = e
+	return best
+
+
+func _fire_at(target: Node2D) -> void:
+	var base_dir := (target.global_position - global_position).normalized()
+	var n := projectile_count
+	var spread := deg_to_rad(14.0)
+	for i in n:
+		var offset := 0.0
+		if n > 1:
+			offset = spread * (i - (n - 1) / 2.0)
+		_spawn_projectile(base_dir.rotated(offset))
+
+
+func _spawn_projectile(dir: Vector2) -> void:
+	var p := Projectile.new()
+	p.damage = projectile_damage
+	p.speed = projectile_speed
+	p.direction = dir
+	p.global_position = global_position
+	projectile_parent.add_child(p)
+
+
+# --- Contact damage ---------------------------------------------------------
+func _handle_contact(delta: float) -> void:
+	contact_timer -= delta
+	if contact_timer > 0.0 or _overlapping.is_empty():
+		return
+	var dmg := 0.0
+	for id in _overlapping:
+		var e = _overlapping[id]
+		if is_instance_valid(e):
+			dmg = max(dmg, e.damage)
+	if dmg > 0.0:
+		take_damage(dmg)
+		contact_timer = contact_tick
+
+
+func take_damage(amount: float) -> void:
+	if dead:
+		return
+	hp -= amount
+	if hp <= 0.0:
+		hp = 0.0
+		dead = true
+		velocity = Vector2.ZERO
+		died.emit()
+
+
+func _on_hurt_area_entered(area: Area2D) -> void:
+	var e := area.get_parent()
+	if e is Enemy:
+		_overlapping[e.get_instance_id()] = e
+
+
+func _on_hurt_area_exited(area: Area2D) -> void:
+	var e := area.get_parent()
+	if e is Enemy:
+		_overlapping.erase(e.get_instance_id())
+
+
+# --- Ability: Orbiting Blades ----------------------------------------------
+func _handle_blades(delta: float) -> void:
+	if blades_level <= 0 or _blades.is_empty():
+		return
+	_blade_angle += delta * 2.6
+	var n := _blades.size()
+	for i in n:
+		var ang := _blade_angle + TAU * i / n
+		_blades[i].position = Vector2(cos(ang), sin(ang)) * 48.0
+	queue_redraw()
+
+
+func _update_blades() -> void:
+	var count := blades_level + 1  # Lv1 -> 2 blades
+	while _blades.size() < count:
+		var b := Area2D.new()
+		b.collision_layer = 0
+		b.collision_mask = 2
+		var cs := CollisionShape2D.new()
+		var sh := CircleShape2D.new()
+		sh.radius = 10.0
+		cs.shape = sh
+		b.add_child(cs)
+		add_child(b)
+		b.area_entered.connect(_on_blade_hit.bind(b))
+		_blades.append(b)
+	while _blades.size() > count:
+		var b = _blades.pop_back()
+		b.queue_free()
+	var dmg := 5.0 + 4.0 * blades_level
+	for b in _blades:
+		b.set_meta("dmg", dmg)
+	queue_redraw()
+
+
+func _on_blade_hit(area: Area2D, blade: Area2D) -> void:
+	var e := area.get_parent()
+	if e is Enemy:
+		e.take_damage(blade.get_meta("dmg"))
+
+
+# --- Ability: Damage Aura ---------------------------------------------------
+func _handle_aura(delta: float) -> void:
+	if aura_level <= 0:
+		return
+	aura_timer -= delta
+	if aura_timer > 0.0:
+		return
+	aura_timer = 0.4
+	var dmg := 3.0 + 3.0 * aura_level
+	for id in _aura_enemies.keys():
+		var e = _aura_enemies[id]
+		if is_instance_valid(e):
+			e.take_damage(dmg)
+		else:
+			_aura_enemies.erase(id)
+
+
+func _update_aura() -> void:
+	aura_radius = 58.0 + 22.0 * aura_level
+	if aura == null:
+		aura = Area2D.new()
+		aura.collision_layer = 0
+		aura.collision_mask = 2
+		var cs := CollisionShape2D.new()
+		aura_shape = CircleShape2D.new()
+		cs.shape = aura_shape
+		aura.add_child(cs)
+		add_child(aura)
+		aura.area_entered.connect(_on_aura_enter)
+		aura.area_exited.connect(_on_aura_exit)
+	aura_shape.radius = aura_radius
+	queue_redraw()
+
+
+func _on_aura_enter(area: Area2D) -> void:
+	var e := area.get_parent()
+	if e is Enemy:
+		_aura_enemies[e.get_instance_id()] = e
+
+
+func _on_aura_exit(area: Area2D) -> void:
+	var e := area.get_parent()
+	if e is Enemy:
+		_aura_enemies.erase(e.get_instance_id())
+
+
+# --- Upgrades ---------------------------------------------------------------
+func apply_upgrade(id: String) -> void:
+	match id:
+		"dmg":
+			projectile_damage *= 1.25
+		"firerate":
+			attack_interval = max(0.08, attack_interval * 0.85)
+		"multishot":
+			projectile_count += 1
+		"projspeed":
+			projectile_speed *= 1.20
+		"movespeed":
+			speed *= 1.10
+		"pickup":
+			pickup_radius *= 1.25
+		"maxhp":
+			max_hp += 20.0
+			hp += 20.0
+		"blades":
+			blades_level += 1
+			_update_blades()
+		"aura":
+			aura_level += 1
+			_update_aura()
+		"heal":
+			hp = min(max_hp, hp + 30.0)
+
+
+func _draw() -> void:
+	if aura_level > 0:
+		draw_circle(Vector2.ZERO, aura_radius, Color(0.4, 0.7, 1.0, 0.06))
+		draw_arc(Vector2.ZERO, aura_radius, 0.0, TAU, 40, Color(0.4, 0.7, 1.0, 0.28), 3.0)
+	draw_circle(Vector2.ZERO, radius, color)
+	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 24, Color.WHITE, 2.0)
+	for b in _blades:
+		draw_circle(b.position, 6.0, Color(0.85, 0.9, 1.0))
+		draw_arc(b.position, 6.0, 0.0, TAU, 12, Color(0.5, 0.6, 0.8), 1.5)
