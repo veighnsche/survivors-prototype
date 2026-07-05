@@ -108,7 +108,7 @@ var INDICATOR_FADE_MAX := 1200.0  # beyond this the beacon is fully faded
 # Loot placed ON the map (streamed per world cell, like buildings)
 var LOOT_CELL := 360.0
 var LOOT_VIEW_CELLS := 4
-var LOOT_DENSITY := 16  # percent of world cells that hold a loot item
+var LOOT_DENSITY := 10  # percent of world cells that hold floor loot (booster/chest)
 
 var BOMB_DAMAGE := 80.0
 var BOMB_RADIUS := 720.0

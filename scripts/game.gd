@@ -244,14 +244,20 @@ func _recycle_far_enemies() -> void:
 
 func _on_enemy_died(e) -> void:
 	kills += 1
-	# Enemies drop XP gems only — gold/pickups/chests live on the map (LootField).
+	# Enemies drop XP gems + gold. Chests/boosters live on the map (LootField).
 	if e.is_boss:
 		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
 		for i in 5:
 			var off := Vector2(randf_range(-40.0, 40.0), randf_range(-40.0, 40.0))
 			_spawn_gem(e.global_position + off, "large")
+		for i in 6:
+			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
+			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
 	else:
 		_spawn_gem(e.global_position, e.xp_tier)
+		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
+		if gd != null and randf() < float(gd.chance):
+			_spawn_gold(e.global_position, int(gd.amount))
 
 
 # --- Pickups ----------------------------------------------------------------

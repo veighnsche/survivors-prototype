@@ -1,8 +1,8 @@
 class_name LootField
 extends Node2D
-## Places loot ON the map (not dropped by enemies). Deterministically seeds each
-## world cell with gold / a pickup / a chest, streams them in around the player,
-## and remembers collected cells so loot never respawns.
+## Places floor loot ON the map: boosters (pickups) and chests. Gold is dropped
+## by monsters, not placed here. Deterministically seeds each world cell, streams
+## it in around the player, and remembers collected cells so loot never respawns.
 
 var player: Node2D
 var game
@@ -68,15 +68,11 @@ func _make(c: Vector2i, cell: float):
 
 	var roll := posmod(h >> 21, 100)
 	var node
-	if roll < 66:
-		var g := Gold.new()
-		g.value = 3 + posmod(h >> 3, 6)
-		node = g
-	elif roll < 96:
+	if roll < 86:
 		var p := Pickup.new()
 		p.kind = _pickup_kind(h)
 		node = p
-	else:  # ~4% of loot cells — chests are a rare find
+	else:  # ~14% of floor loot — chests are the rarer find
 		node = Chest.new()
 
 	node.player = player
@@ -88,5 +84,5 @@ func _make(c: Vector2i, cell: float):
 
 
 func _pickup_kind(h: int) -> String:
-	var kinds := ["heal", "magnet", "bomb", "frenzy", "power", "haste"]
+	var kinds := ["heal", "magnet", "bomb", "frenzy", "power", "haste", "shield"]
 	return kinds[posmod(h >> 17, kinds.size())]
