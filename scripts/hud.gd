@@ -27,13 +27,13 @@ func _ready() -> void:
 	xp_bar.offset_bottom = 12.0
 	add_child(xp_bar)
 
-	time_label = _make_label(Vector2(592, 20), 30)
+	time_label = _make_label(Vector2(590, 22), 30)
 	time_label.text = "00:00"
-	level_label = _make_label(Vector2(600, 56), 19)
-	hp_label = _make_label(Vector2(20, 20), 21)
-	class_label = _make_label(Vector2(20, 48), 16)
-	info_label = _make_label(Vector2(1050, 20), 20)
-	gold_label = _make_label(Vector2(1050, 68), 19)
+	level_label = _make_label(Vector2(600, 60), 20)
+	hp_label = _make_label(Vector2(20, 22), 22)
+	class_label = _make_label(Vector2(20, 52), 18)
+	info_label = _make_label(Vector2(1040, 22), 22)
+	gold_label = _make_label(Vector2(1040, 74), 20)
 
 	death_overlay = ColorRect.new()
 	death_overlay.color = Color(0, 0, 0, 0.6)
