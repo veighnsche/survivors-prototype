@@ -31,7 +31,7 @@ func _draw() -> void:
 	var wname: String = Config.WEAPONS[weapon_kind].name
 	draw_circle(Vector2.ZERO, 14.0, Color(0.1, 0.1, 0.12))
 	draw_arc(Vector2.ZERO, 14.0, 0.0, TAU, 26, c, 3.0)
-	var letter: String = {"ranged": "R", "melee": "C", "chain": "T"}.get(weapon_kind, "?")
+	var letter: String = {"ranged": "R", "melee": "C", "chain": "T", "boomerang": "B", "railgun": "L"}.get(weapon_kind, "?")
 	draw_string(ThemeDB.fallback_font, Vector2(-5, 6), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, c)
 	draw_string(ThemeDB.fallback_font, Vector2(-60, -22), wname, HORIZONTAL_ALIGNMENT_CENTER, 120, 14, c)
 	if player != null and is_instance_valid(player):

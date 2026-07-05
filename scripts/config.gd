@@ -17,9 +17,11 @@ var WEAPONS := {
 	"ranged": {"name": "Blaster",    "color": Color(0.35, 0.76, 0.96), "damage": 5.0,  "interval": 0.50, "range": 950.0, "speed": 520.0, "count": 1, "pierce": 0},
 	"melee":  {"name": "Cleaver",    "color": Color(0.95, 0.55, 0.28), "damage": 15.0, "interval": 0.60, "range": 132.0, "arc": 100.0, "knockback": 0.0},
 	"chain":  {"name": "Tesla Coil", "color": Color(0.58, 0.85, 1.0),  "damage": 7.0,  "interval": 0.85, "range": 500.0, "jumps": 3, "jump_range": 220.0, "falloff": 0.65},
+	"boomerang": {"name": "Boomerang", "color": Color(0.55, 0.85, 0.4), "damage": 6.0,  "interval": 0.90, "range": 380.0, "speed": 660.0, "count": 1},
+	"railgun":   {"name": "Railgun",   "color": Color(1.0, 0.5, 0.85),  "damage": 26.0, "interval": 1.20, "range": 900.0, "width": 22.0},
 }
 var WEAPON_DROP_CHANCE := 0.03            # per non-boss enemy death
-var WEAPON_DROP_TYPES := ["ranged", "melee", "chain"]  # fists is the innate fallback, never dropped
+var WEAPON_DROP_TYPES := ["ranged", "melee", "chain", "boomerang", "railgun"]  # fists is the innate fallback, never dropped
 var WEAPON_PICKUP_RADIUS := 46.0          # how close you must be to press E to swap
 var WEAPON_LONG_PRESS := 0.5              # hold E this long to drop back to fists
 

@@ -34,6 +34,16 @@ static func pool() -> Array:
 		{"id": "c_jumps",     "name": "Fork",       "desc": "+1 chain jump.\nLocks Conduit.",  "rarity": "rare", "max": 4, "locks": ["c_reach"], "weapon": "chain"},
 		{"id": "c_reach",     "name": "Conduit",    "desc": "+25% zap reach.\nLocks Fork.",    "rarity": "rare", "max": 4, "locks": ["c_jumps"], "weapon": "chain"},
 		{"id": "c_jumprange", "name": "Arc Length", "desc": "+20% jump range",    "rarity": "common", "max": 4, "locks": [],           "weapon": "chain"},
+		# --- Boomerang ---
+		{"id": "b_dmg",   "name": "Sharp Edge",  "desc": "+25% boomerang damage", "rarity": "common", "max": 5, "locks": [], "weapon": "boomerang"},
+		{"id": "b_count", "name": "Twin Throw",  "desc": "+1 boomerang",          "rarity": "rare",   "max": 3, "locks": [], "weapon": "boomerang"},
+		{"id": "b_range", "name": "Long Throw",  "desc": "+20% throw range",      "rarity": "common", "max": 4, "locks": [], "weapon": "boomerang"},
+		{"id": "b_speed", "name": "Fast Return", "desc": "+20% speed",            "rarity": "common", "max": 4, "locks": [], "weapon": "boomerang"},
+		# --- Railgun ---
+		{"id": "rg_dmg",    "name": "Overvolt",     "desc": "+25% beam damage", "rarity": "common", "max": 5, "locks": [], "weapon": "railgun"},
+		{"id": "rg_width",  "name": "Wide Beam",    "desc": "+8 beam width",    "rarity": "common", "max": 4, "locks": [], "weapon": "railgun"},
+		{"id": "rg_charge", "name": "Rapid Charge", "desc": "+15% fire rate",   "rarity": "rare",   "max": 4, "locks": [], "weapon": "railgun"},
+		{"id": "rg_range",  "name": "Long Barrel",  "desc": "+15% beam range",  "rarity": "common", "max": 4, "locks": [], "weapon": "railgun"},
 	]
 
 static func weight(rarity: String) -> float:

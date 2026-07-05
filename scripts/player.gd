@@ -220,6 +220,10 @@ func _weapon_attack() -> bool:
 			return _melee_attack()
 		"chain":
 			return _chain_attack()
+		"boomerang":
+			return _boomerang_attack()
+		"railgun":
+			return _railgun_attack()
 		_:
 			return _ranged_attack()
 
@@ -357,6 +361,52 @@ func _spawn_chain_bolt(pts: PackedVector2Array) -> void:
 	bolt.points = pts
 	bolt.color = Color(color.r, color.g, color.b, 0.95)
 	projectile_parent.add_child(bolt)
+
+
+# --- Boomerang: thrown, returns, pierces both ways --------------------------
+func _boomerang_attack() -> bool:
+	var ws: Dictionary = weapon_stats["boomerang"]
+	var target := _nearest_enemy_in(ws.range * 1.3)
+	if target == null:
+		return false
+	var base_dir := (target.global_position - global_position).normalized()
+	var count := int(ws.count)
+	for i in count:
+		var offset := 0.0
+		if count > 1:
+			offset = deg_to_rad(20.0) * (i - (count - 1) / 2.0)
+		var b := Boomerang.new()
+		b.damage = _dmg(ws.damage)
+		b.speed = ws.speed
+		b.reach = ws.range
+		b.direction = base_dir.rotated(offset)
+		b.player = self
+		b.global_position = global_position
+		projectile_parent.add_child(b)
+	return true
+
+
+# --- Railgun: instant piercing beam in a line -------------------------------
+func _railgun_attack() -> bool:
+	var ws: Dictionary = weapon_stats["railgun"]
+	var target := _nearest_enemy_in(ws.range)
+	if target == null:
+		return false
+	var aim := (target.global_position - global_position).normalized()
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var to_e: Vector2 = e.global_position - global_position
+		var along := to_e.dot(aim)
+		if along < 0.0 or along > ws.range:
+			continue
+		if (to_e - aim * along).length() <= ws.width:
+			e.take_damage(_dmg(ws.damage))
+	var beam := BeamFx.new()
+	beam.from = global_position
+	beam.to = global_position + aim * ws.range
+	beam.width = ws.width
+	beam.color = color
+	projectile_parent.add_child(beam)
+	return true
 
 
 # --- Contact damage ---------------------------------------------------------
@@ -596,6 +646,22 @@ func apply_upgrade(id: String) -> void:
 			weapon_stats.chain.range *= 1.25
 		"c_jumprange":
 			weapon_stats.chain.jump_range *= 1.20
+		"b_dmg":
+			weapon_stats.boomerang.damage *= 1.25
+		"b_count":
+			weapon_stats.boomerang.count += 1
+		"b_range":
+			weapon_stats.boomerang.range *= 1.20
+		"b_speed":
+			weapon_stats.boomerang.speed *= 1.20
+		"rg_dmg":
+			weapon_stats.railgun.damage *= 1.25
+		"rg_width":
+			weapon_stats.railgun.width += 8.0
+		"rg_charge":
+			weapon_stats.railgun.interval = max(0.30, weapon_stats.railgun.interval * 0.85)
+		"rg_range":
+			weapon_stats.railgun.range *= 1.15
 		"heal":
 			hp = min(max_hp, hp + 30.0)
 
