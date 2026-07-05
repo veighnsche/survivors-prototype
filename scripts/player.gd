@@ -36,6 +36,10 @@ var melee_knockback := 0.0
 # Pickups
 var pickup_radius := 72.0
 
+# Meta-progression (applied at run start)
+var armor := 0.0
+var recovery := 0.0
+
 # Contact damage
 var contact_tick := 0.5
 var contact_timer := 0.0
@@ -110,6 +114,8 @@ func _physics_process(_delta: float) -> void:
 func _process(delta: float) -> void:
 	if dead:
 		return
+	if recovery > 0.0 and hp < max_hp:
+		hp = min(max_hp, hp + recovery * delta)
 	_handle_attack(delta)
 	_handle_contact(delta)
 	_handle_blades(delta)
@@ -229,7 +235,7 @@ func _handle_contact(delta: float) -> void:
 func take_damage(amount: float) -> void:
 	if dead:
 		return
-	hp -= amount
+	hp -= max(0.0, amount - armor)
 	Fx.shake(Config.SHAKE_ON_HIT)
 	modulate = Color(1.7, 0.6, 0.6)
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.18)

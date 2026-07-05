@@ -58,6 +58,30 @@ var GEM_COLLECT_DIST := 15.0
 var REROLL_CHARGES := 3
 var BANISH_CHARGES := 2
 
+# --- Gold & meta-progression -----------------------------------------------
+var GOLD_DROP := {
+	"small":  {"amount": 1, "chance": 0.35},
+	"medium": {"amount": 2, "chance": 0.75},
+	"large":  {"amount": 6, "chance": 1.0},
+}
+var GOLD_BOSS := 45
+var GOLD_ATTRACT_SPEED := 600.0
+var GOLD_COLLECT_DIST := 16.0
+
+# Permanent PowerUps bought between runs with gold. effect applied at run start.
+var POWERUPS := [
+	{"id": "might",     "name": "Might",       "desc": "+5% damage",        "max": 5, "base_cost": 100, "cost_growth": 1.6},
+	{"id": "health",    "name": "Max Health",  "desc": "+12 max HP",        "max": 5, "base_cost": 80,  "cost_growth": 1.5},
+	{"id": "moveSpeed", "name": "Move Speed",  "desc": "+4% move speed",    "max": 5, "base_cost": 90,  "cost_growth": 1.55},
+	{"id": "amount",    "name": "Amount",      "desc": "+1 projectile",     "max": 2, "base_cost": 300, "cost_growth": 2.2},
+	{"id": "magnet",    "name": "Magnet",      "desc": "+15% pickup radius","max": 4, "base_cost": 70,  "cost_growth": 1.5},
+	{"id": "growth",    "name": "Growth",      "desc": "+8% XP gain",       "max": 5, "base_cost": 120, "cost_growth": 1.6},
+	{"id": "greed",     "name": "Greed",       "desc": "+10% gold gain",    "max": 5, "base_cost": 110, "cost_growth": 1.6},
+	{"id": "cooldown",  "name": "Cooldown",    "desc": "-4% attack time",   "max": 5, "base_cost": 150, "cost_growth": 1.7},
+	{"id": "armor",     "name": "Armor",       "desc": "-1 damage taken",   "max": 5, "base_cost": 100, "cost_growth": 1.6},
+	{"id": "recovery",  "name": "Recovery",    "desc": "+0.2 HP/sec",       "max": 5, "base_cost": 100, "cost_growth": 1.6},
+]
+
 # --- Pickups & juice --------------------------------------------------------
 var PICKUP_DROP_CHANCE := {"small": 0.004, "medium": 0.02, "large": 0.12}
 var PICKUP_WEIGHTS := {"heal": 0.6, "magnet": 0.25, "bomb": 0.15}
@@ -73,3 +97,10 @@ var SHAKE_ON_BOSS_DEATH := 0.9
 func xp_for_level(l: int) -> float:
 	# Fast early, then accelerating cost per level.
 	return 5.0 + 4.0 * (l - 1) + pow(max(l - 1, 0), 2.1)
+
+
+func powerup_def(id: String):
+	for p in POWERUPS:
+		if p.id == id:
+			return p
+	return null

@@ -8,6 +8,7 @@ var level_label: Label
 var hp_label: Label
 var class_label: Label
 var info_label: Label
+var gold_label: Label
 var xp_bar: ProgressBar
 var death_overlay: ColorRect
 var death_label: Label
@@ -32,6 +33,7 @@ func _ready() -> void:
 	hp_label = _make_label(Vector2(20, 22), 22)
 	class_label = _make_label(Vector2(20, 52), 18)
 	info_label = _make_label(Vector2(1040, 22), 22)
+	gold_label = _make_label(Vector2(1040, 74), 20)
 
 	death_overlay = ColorRect.new()
 	death_overlay.color = Color(0, 0, 0, 0.6)
@@ -59,17 +61,18 @@ func _make_label(pos: Vector2, size: int) -> Label:
 	return l
 
 
-func update_hud(elapsed: float, hp: float, max_hp: float, enemy_count: int, kills: int, level: int, xp: float, xp_to_next: float) -> void:
+func update_hud(elapsed: float, hp: float, max_hp: float, enemy_count: int, kills: int, level: int, xp: float, xp_to_next: float, gold: int) -> void:
 	time_label.text = _fmt_time(elapsed)
 	level_label.text = "Level %d" % level
 	hp_label.text = "HP  %d / %d" % [int(ceil(hp)), int(max_hp)]
 	info_label.text = "Enemies  %d\nKills  %d" % [enemy_count, kills]
+	gold_label.text = "Gold  %d" % gold
 	xp_bar.max_value = max(1.0, xp_to_next)
 	xp_bar.value = xp
 
 
-func show_death(elapsed: float, kills: int, level: int) -> void:
-	death_label.text = "YOU DIED\n\nSurvived %s     Level %d     Kills %d\n\nPress R to restart" % [_fmt_time(elapsed), level, kills]
+func show_death(elapsed: float, kills: int, level: int, gold: int) -> void:
+	death_label.text = "YOU DIED\n\nSurvived %s     Level %d     Kills %d\nGold earned: %d\n\nPress R for menu" % [_fmt_time(elapsed), level, kills, gold]
 	death_overlay.visible = true
 
 

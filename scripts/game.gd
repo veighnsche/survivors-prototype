@@ -28,6 +28,11 @@ var xp := 0.0
 var xp_to_next := 0.0
 var pending_levelups := 0
 
+# Gold / meta-progression
+var run_gold := 0
+var growth_mult := 1.0
+var greed_mult := 1.0
+
 # Upgrade run-state
 var upgrade_levels: Dictionary = {}
 var locked: Dictionary = {}
@@ -105,16 +110,34 @@ func _ready() -> void:
 
 func _on_class_chosen(id: String) -> void:
 	player.set_class(id)
+	_apply_meta()
 	hud.set_class(Config.CLASS[id].name)
 	class_select.queue_free()
 	run_started = true
 	get_tree().paused = false
 
 
+## Apply permanent PowerUps (bought with gold) on top of the class base stats.
+func _apply_meta() -> void:
+	var might := Save.powerup_level("might")
+	player.projectile_damage *= (1.0 + 0.05 * might)
+	player.melee_damage *= (1.0 + 0.05 * might)
+	player.max_hp += 12.0 * Save.powerup_level("health")
+	player.hp = player.max_hp
+	player.speed *= (1.0 + 0.04 * Save.powerup_level("moveSpeed"))
+	player.projectile_count += Save.powerup_level("amount")
+	player.pickup_radius *= (1.0 + 0.15 * Save.powerup_level("magnet"))
+	player.attack_interval *= pow(0.96, Save.powerup_level("cooldown"))
+	player.armor += float(Save.powerup_level("armor"))
+	player.recovery += 0.2 * Save.powerup_level("recovery")
+	growth_mult = 1.0 + 0.08 * Save.powerup_level("growth")
+	greed_mult = 1.0 + 0.10 * Save.powerup_level("greed")
+
+
 func _process(delta: float) -> void:
 	if game_over:
 		if Input.is_physical_key_pressed(KEY_R):
-			get_tree().reload_current_scene()
+			get_tree().change_scene_to_file("res://main_menu.tscn")
 		return
 	if not run_started:
 		return
@@ -132,7 +155,7 @@ func _process(delta: float) -> void:
 		gem_merge_timer = 0.25
 		_merge_gems()
 
-	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills, level, xp, xp_to_next)
+	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills, level, xp, xp_to_next, run_gold)
 
 
 # --- Spawn timeline ---------------------------------------------------------
@@ -208,10 +231,16 @@ func _on_enemy_died(e) -> void:
 			_spawn_gem(e.global_position + off, "large")
 		_spawn_pickup(e.global_position + Vector2(30, 0), "heal")
 		_spawn_pickup(e.global_position + Vector2(-30, 0), "bomb")
+		for i in 6:
+			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
+			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
 	else:
 		_spawn_gem(e.global_position, e.xp_tier)
 		if randf() < float(Config.PICKUP_DROP_CHANCE.get(e.xp_tier, 0.0)):
 			_spawn_pickup(e.global_position, _pick_pickup_kind())
+		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
+		if gd != null and randf() < float(gd.chance):
+			_spawn_gold(e.global_position, int(gd.amount))
 
 
 # --- Pickups ----------------------------------------------------------------
@@ -234,6 +263,19 @@ func _spawn_pickup(pos: Vector2, kind: String) -> void:
 	p.game = self
 	p.global_position = pos
 	pickups_root.add_child(p)
+
+
+func _spawn_gold(pos: Vector2, amount: int) -> void:
+	var g := Gold.new()
+	g.value = amount
+	g.player = player
+	g.game = self
+	g.global_position = pos
+	pickups_root.add_child(g)
+
+
+func add_run_gold(n: int) -> void:
+	run_gold += int(round(n * greed_mult))
 
 
 func vacuum_all_gems() -> void:
@@ -285,7 +327,7 @@ func _merge_gems() -> void:
 
 # --- Progression ------------------------------------------------------------
 func add_xp(amount: float) -> void:
-	xp += amount
+	xp += amount * growth_mult
 	while xp >= xp_to_next:
 		xp -= xp_to_next
 		level += 1
@@ -382,4 +424,5 @@ func _after_choice() -> void:
 
 func _on_player_died() -> void:
 	game_over = true
-	hud.show_death(elapsed, kills, level)
+	Save.add_gold(run_gold)  # bank immediately so it's never lost
+	hud.show_death(elapsed, kills, level, run_gold)

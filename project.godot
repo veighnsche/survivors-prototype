@@ -6,13 +6,14 @@ config_version=5
 [application]
 
 config/name="Survivors Prototype"
-run/main_scene="res://main.tscn"
+run/main_scene="res://main_menu.tscn"
 config/features=PackedStringArray("4.7", "Forward Plus")
 
 [autoload]
 
 Config="*res://scripts/config.gd"
 Fx="*res://scripts/fx.gd"
+Save="*res://scripts/save.gd"
 
 [display]
 
