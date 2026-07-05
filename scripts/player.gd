@@ -181,6 +181,7 @@ func grant_family_tier(fam: String, tier: int) -> void:
 
 func _grant_tier(fam: String, tier: int, loud: bool) -> void:
 	granted_tier[fam] = tier
+	RunLog.event("%s tier %d %s" % [Config.FAMILY_NAMES[fam], tier, "AWAKENED" if loud else "(picked as card)"])
 	_apply_tier_effects(fam, tier)
 	if loud:
 		awakened.emit(fam)
@@ -230,8 +231,11 @@ func deal(e, base: float, dtype: String, fam: String) -> void:
 	if e == null or not is_instance_valid(e):
 		return
 	var applied: float = e.take_damage(base * damage_mult * boost_dmg, dtype)
+	RunLog.bump("damage_by_family", fam if fam != "" else "cantrip", applied)
+	RunLog.bump("damage_by_type", dtype, applied)
 	if siphon_pct > 0.0 and applied > 0.0:
 		hp = min(max_hp, hp + applied * siphon_pct)
+		RunLog.bump("healing", "siphon", applied * siphon_pct)
 	if fam != "" and applied > 0.0:
 		add_insight(fam, 0.015)
 
@@ -401,10 +405,12 @@ func take_damage(amount: float) -> void:
 		var absorbed: float = min(shield_hp, remaining)
 		shield_hp -= absorbed
 		remaining -= absorbed
+		RunLog.bump("damage_taken", "shield", absorbed)
 		add_insight("ward", 0.04)
 		queue_redraw()
 		if remaining <= 0.0:
 			return
+	RunLog.bump("damage_taken", "hp", remaining)
 	hp -= remaining
 	Fx.shake(Config.SHAKE_ON_HIT)
 	modulate = Color(1.7, 0.6, 0.6)

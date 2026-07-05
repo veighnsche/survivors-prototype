@@ -56,6 +56,7 @@ func _ready() -> void:
 
 	var map_seed := randi()
 	biome_map = BiomeMap.new(map_seed)
+	RunLog.start(map_seed)
 
 	player = Player.new()
 
@@ -191,6 +192,10 @@ func _process(delta: float) -> void:
 	if biome != _cur_biome:
 		_cur_biome = biome
 		hud.show_banner("Entering %s" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)
+		RunLog.event("entered %s (lvl %d, hp %.0f)" % [Config.BIOMES[biome].name, level, player.hp])
+	RunLog.t = elapsed
+	RunLog.bump("time_in_biome_sec", biome, delta)
+	RunLog.tick_snapshot(delta, self)
 	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills,
 		level, xp, xp_to_next, run_gold, Config.BIOMES[biome].name, _family_summary())
 
@@ -235,6 +240,7 @@ func _update_spawns(delta: float) -> void:
 
 	if not boss_spawned and elapsed >= Config.BOSS_TIME:
 		boss_spawned = true
+		RunLog.event("BOSS spawned")
 		_spawn_boss()
 
 
@@ -293,7 +299,11 @@ func _recycle_far_enemies() -> void:
 
 func _on_enemy_died(e) -> void:
 	kills += 1
+	RunLog.bump("kills_by_enemy", Config.ARCHETYPES[e.archetype].name)
+	if e._outside:
+		RunLog.bump("kills_special", "out_of_biome")
 	if e.is_boss:
+		RunLog.event("BOSS killed (lvl %d, hp %.0f)" % [level, player.hp])
 		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
 		for i in 5:
 			var off := Vector2(randf_range(-40.0, 40.0), randf_range(-40.0, 40.0))
@@ -342,6 +352,7 @@ func _spawn_essence(pos: Vector2, family: String) -> void:
 
 
 func add_insight(family: String, amount: float) -> void:
+	RunLog.bump("essence_collected", family, amount)
 	player.add_insight(family, amount)
 
 
@@ -388,6 +399,7 @@ func _merge_gems() -> void:
 
 # --- Chests ----------------------------------------------------------------------
 func open_chest(pos: Vector2) -> void:
+	RunLog.event("chest opened")
 	Fx.death_pop(pos, Color(0.95, 0.75, 0.25))
 	Fx.shake(0.35)
 	add_run_gold(Config.CHEST_GOLD)
@@ -409,6 +421,7 @@ func add_xp(amount: float) -> void:
 		level += 1
 		pending_levelups += 1
 		xp_to_next = Config.xp_for_level(level)
+		RunLog.event("level up -> %d" % level)
 	if pending_levelups > 0 and not card_screen.active:
 		_open_level_up()
 
@@ -467,6 +480,8 @@ func _def(id: String):
 
 
 func _apply_choice(id: String) -> void:
+	RunLog.event("card picked: %s" % id)
+	RunLog.bump("cards_picked", id)
 	if id.begins_with("fam:"):
 		var parts := id.split(":")
 		player.grant_family_tier(parts[1], int(parts[2]))
@@ -535,10 +550,18 @@ func _sim_report() -> void:
 	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)
 	print("SIM_RESULT time=%.0f kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f enemies=%d" % [
 		elapsed, kills, kps, dps, Sim.damage_taken, enemies_root.get_child_count()])
+	RunLog.finish("sim end", self)
 	get_tree().quit()
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST:
+		RunLog.finish("window closed", self)
 
 
 func _on_player_died() -> void:
 	game_over = true
 	Save.add_gold(run_gold)
+	RunLog.event("PLAYER DIED")
+	RunLog.finish("death", self)
 	hud.show_death(elapsed, kills, level, run_gold)

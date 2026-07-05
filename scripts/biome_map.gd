@@ -29,15 +29,18 @@ func biome_at(pos: Vector2) -> String:
 			var d := pos.distance_squared_to(center)
 			if d < best_d:
 				best_d = d
-				best = _pick_biome(h >> 20)
+				best = _pick_biome(c)
 	return best
 
 
-func _pick_biome(h: int) -> String:
+func _pick_biome(c: Vector2i) -> String:
+	# Independent full-range hash for the biome roll. (Reusing high bits of the
+	# jitter hash capped the roll at ~0.41 and made some biomes IMPOSSIBLE.)
+	var h := hash(Vector3i(world_seed ^ 0x51ED270, c.x, c.y))
 	var total := 0.0
 	for k in Config.BIOME_WEIGHTS:
 		total += Config.BIOME_WEIGHTS[k]
-	var roll := (float(posmod(h, 10000)) / 10000.0) * total
+	var roll := (float(posmod(h, 100000)) / 100000.0) * total
 	for k in Config.BIOME_WEIGHTS:
 		roll -= Config.BIOME_WEIGHTS[k]
 		if roll <= 0.0:

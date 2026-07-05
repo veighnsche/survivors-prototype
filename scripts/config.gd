@@ -36,7 +36,7 @@ var BIOMES := {
 		"roster": [{"arch": "brute", "w": 0.55}, {"arch": "shambler", "w": 0.45}]},
 }
 var COMMONS_RADIUS := 450.0   # small guaranteed-Commons ring at spawn; blobs vary right beyond it
-var BIOME_CELL := 1600.0      # size of the Voronoi cells that make the blobs
+var BIOME_CELL := 4200.0      # HUGE blobs — several screens across; easy to enter, hard to leave
 var BIOME_WEIGHTS := {"commons": 0.34, "thornreach": 0.33, "barrows": 0.33}
 
 # Territory: enemies weaken and head home when outside their biome (no dragging
