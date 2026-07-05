@@ -61,10 +61,11 @@ func _make_label(pos: Vector2, size: int) -> Label:
 	return l
 
 
-func update_hud(elapsed: float, hp: float, max_hp: float, enemy_count: int, kills: int, level: int, xp: float, xp_to_next: float, gold: int) -> void:
+func update_hud(elapsed: float, hp: float, max_hp: float, enemy_count: int, kills: int, level: int, xp: float, xp_to_next: float, gold: int, weapon_name: String) -> void:
 	time_label.text = _fmt_time(elapsed)
 	level_label.text = "Level %d" % level
 	hp_label.text = "HP  %d / %d" % [int(ceil(hp)), int(max_hp)]
+	class_label.text = "Weapon: %s   [E swap / hold E: fists]" % weapon_name
 	info_label.text = "Enemies  %d\nKills  %d" % [enemy_count, kills]
 	gold_label.text = "Gold  %d" % gold
 	xp_bar.max_value = max(1.0, xp_to_next)

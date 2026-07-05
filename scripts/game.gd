@@ -11,7 +11,6 @@ var pickups_root: Node2D
 var fx_root: Node2D
 var hud: HUD
 var card_screen: CardScreen
-var class_select: ClassSelect
 
 var run_started := false
 var elapsed := 0.0
@@ -83,6 +82,7 @@ func _ready() -> void:
 	add_child(projectiles_root)
 
 	player.projectile_parent = projectiles_root
+	player.arena = self
 	player.add_to_group("player")
 	player.died.connect(_on_player_died)
 	add_child(player)
@@ -118,42 +118,22 @@ func _ready() -> void:
 	card_screen.rerolled.connect(_on_card_rerolled)
 	add_child(card_screen)
 
-	# Gate the run behind class selection.
-	class_select = ClassSelect.new()
-	class_select.chosen.connect(_on_class_chosen)
-	add_child(class_select)
-	get_tree().paused = true
-
-	# Headless auto-start (smoke tests / future balance harness, issue #65).
-	if DisplayServer.get_name() == "headless":
-		var tc := "melee"
-		if OS.has_environment("TEST_CLASS"):
-			tc = OS.get_environment("TEST_CLASS")
-		call_deferred("_on_class_chosen", tc)
-
-
-func _on_class_chosen(id: String) -> void:
-	player.set_class(id)
+	# Start immediately with fists — weapons are found in the run, not picked.
 	_apply_meta()
-	hud.set_class(Config.CLASS[id].name)
-	class_select.queue_free()
 	run_started = true
-	get_tree().paused = false
 
 
-## Apply permanent PowerUps (bought with gold) on top of the class base stats.
+## Apply permanent PowerUps (bought with gold) at run start.
 func _apply_meta() -> void:
-	var might := Save.powerup_level("might")
-	player.projectile_damage *= (1.0 + 0.05 * might)
-	player.melee_damage *= (1.0 + 0.05 * might)
+	player.damage_mult *= (1.0 + 0.05 * Save.powerup_level("might"))
 	player.max_hp += 12.0 * Save.powerup_level("health")
 	player.hp = player.max_hp
 	player.speed *= (1.0 + 0.04 * Save.powerup_level("moveSpeed"))
-	player.projectile_count += Save.powerup_level("amount")
 	player.pickup_radius *= (1.0 + 0.15 * Save.powerup_level("magnet"))
-	player.attack_interval *= pow(0.96, Save.powerup_level("cooldown"))
+	player.attack_speed_mult *= pow(0.96, Save.powerup_level("cooldown"))
 	player.armor += float(Save.powerup_level("armor"))
 	player.recovery += 0.2 * Save.powerup_level("recovery")
+	player.weapon_stats.ranged.count += Save.powerup_level("amount")
 	growth_mult = 1.0 + 0.08 * Save.powerup_level("growth")
 	greed_mult = 1.0 + 0.10 * Save.powerup_level("greed")
 
@@ -179,7 +159,7 @@ func _process(delta: float) -> void:
 		gem_merge_timer = 0.25
 		_merge_gems()
 
-	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills, level, xp, xp_to_next, run_gold)
+	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills, level, xp, xp_to_next, run_gold, player.weapon_name())
 
 
 # --- Spawn timeline ---------------------------------------------------------
@@ -257,11 +237,14 @@ func _on_enemy_died(e) -> void:
 		for i in 6:
 			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
 			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
+		spawn_weapon_pickup(e.global_position + Vector2(0, -40), Config.WEAPON_DROP_TYPES.pick_random())
 	else:
 		_spawn_gem(e.global_position, e.xp_tier)
 		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
 		if gd != null and randf() < float(gd.chance):
 			_spawn_gold(e.global_position, int(gd.amount))
+		if randf() < Config.WEAPON_DROP_CHANCE:
+			spawn_weapon_pickup(e.global_position, Config.WEAPON_DROP_TYPES.pick_random())
 
 
 # --- Pickups ----------------------------------------------------------------
@@ -297,6 +280,14 @@ func _spawn_gold(pos: Vector2, amount: int) -> void:
 
 func add_run_gold(n: int) -> void:
 	run_gold += int(round(n * greed_mult))
+
+
+func spawn_weapon_pickup(pos: Vector2, kind: String) -> void:
+	var w := WeaponPickup.new()
+	w.weapon_kind = kind
+	w.player = player
+	w.global_position = pos
+	pickups_root.add_child(w)
 
 
 func _spawn_chest(pos: Vector2) -> void:
@@ -392,8 +383,8 @@ func _draw_cards(n: int) -> Array:
 	var elig: Array = []
 	for def in Upgrades.pool():
 		var id: String = def.id
-		var tag: String = def.get("class", "any")
-		if tag != "any" and tag != player.class_id:
+		var tag: String = def.get("weapon", "any")
+		if tag != "any" and tag != player.weapon_kind:
 			continue
 		if banished.has(id) or locked.has(id):
 			continue

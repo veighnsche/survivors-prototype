@@ -9,6 +9,20 @@ var CLASS := {
 	"melee":  {"name": "Bruiser", "blurb": "Cleaving arc swing.\nTanky: sturdy but slower.\nMust close in, hits crowds.",  "max_hp": 140.0, "speed": 186.0, "attack_interval": 0.62, "color": Color(0.95, 0.55, 0.28)},
 }
 
+# --- Weapons (one active at a time; you start with fists) -------------------
+# Base stats; upgrades mutate a per-run copy on the player, so investment in a
+# weapon persists even if you swap away and back.
+var WEAPONS := {
+	"fists":  {"name": "Fists",      "color": Color(0.85, 0.80, 0.62), "damage": 6.0,  "interval": 0.34, "range": 76.0,  "targets": 1},
+	"ranged": {"name": "Blaster",    "color": Color(0.35, 0.76, 0.96), "damage": 5.0,  "interval": 0.50, "range": 950.0, "speed": 520.0, "count": 1, "pierce": 0},
+	"melee":  {"name": "Cleaver",    "color": Color(0.95, 0.55, 0.28), "damage": 15.0, "interval": 0.60, "range": 132.0, "arc": 100.0, "knockback": 0.0},
+	"chain":  {"name": "Tesla Coil", "color": Color(0.58, 0.85, 1.0),  "damage": 8.0,  "interval": 0.70, "range": 520.0, "jumps": 3, "jump_range": 230.0},
+}
+var WEAPON_DROP_CHANCE := 0.03            # per non-boss enemy death
+var WEAPON_DROP_TYPES := ["ranged", "melee", "chain"]  # fists is the innate fallback, never dropped
+var WEAPON_PICKUP_RADIUS := 46.0          # how close you must be to press E to swap
+var WEAPON_LONG_PRESS := 0.5              # hold E this long to drop back to fists
+
 # --- Ranged weapon ----------------------------------------------------------
 var PROJECTILE_DAMAGE := 5.0
 var PROJECTILE_SPEED := 520.0
