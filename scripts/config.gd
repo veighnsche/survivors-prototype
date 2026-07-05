@@ -16,7 +16,7 @@ var WEAPONS := {
 	"fists":  {"name": "Fists",      "color": Color(0.85, 0.80, 0.62), "damage": 6.0,  "interval": 0.34, "range": 76.0,  "targets": 1},
 	"ranged": {"name": "Blaster",    "color": Color(0.35, 0.76, 0.96), "damage": 5.0,  "interval": 0.50, "range": 950.0, "speed": 520.0, "count": 1, "pierce": 0},
 	"melee":  {"name": "Cleaver",    "color": Color(0.95, 0.55, 0.28), "damage": 15.0, "interval": 0.60, "range": 132.0, "arc": 100.0, "knockback": 0.0},
-	"chain":  {"name": "Tesla Coil", "color": Color(0.58, 0.85, 1.0),  "damage": 8.0,  "interval": 0.70, "range": 520.0, "jumps": 3, "jump_range": 230.0},
+	"chain":  {"name": "Tesla Coil", "color": Color(0.58, 0.85, 1.0),  "damage": 7.0,  "interval": 0.85, "range": 500.0, "jumps": 3, "jump_range": 220.0, "falloff": 0.65},
 }
 var WEAPON_DROP_CHANCE := 0.03            # per non-boss enemy death
 var WEAPON_DROP_TYPES := ["ranged", "melee", "chain"]  # fists is the innate fallback, never dropped
@@ -120,9 +120,10 @@ var INDICATOR_FADE_MIN := 320.0   # at/under this distance the beacon is full al
 var INDICATOR_FADE_MAX := 1200.0  # beyond this the beacon is fully faded
 
 # Loot placed ON the map (streamed per world cell, like buildings)
-var LOOT_CELL := 360.0
+var LOOT_CELL := 480.0
 var LOOT_VIEW_CELLS := 4
-var LOOT_DENSITY := 10  # percent of world cells that hold floor loot (booster/chest)
+var LOOT_DENSITY := 28       # percent of world cells that hold floor loot (booster/chest)
+var LOOT_JITTER := 0.55      # offset fraction of the cell (smaller = more even spacing)
 
 var BOMB_DAMAGE := 80.0
 var BOMB_RADIUS := 720.0

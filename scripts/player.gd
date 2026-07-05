@@ -328,11 +328,13 @@ func _chain_attack() -> bool:
 		return false
 	var pts := PackedVector2Array([global_position])
 	var already: Dictionary = {}
+	var dmg := _dmg(ws.damage)
 	for j in int(ws.jumps) + 1:
 		if current == null:
 			break
 		already[current.get_instance_id()] = true
-		current.take_damage(_dmg(ws.damage))
+		current.take_damage(dmg)
+		dmg *= ws.falloff  # each jump weaker than the last
 		pts.append(current.global_position)
 		current = _nearest_enemy_excluding(current.global_position, ws.jump_range, already)
 	_spawn_chain_bolt(pts)

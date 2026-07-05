@@ -67,9 +67,10 @@ func _make(c: Vector2i, cell: float):
 	var hy := hash(Vector3i(world_seed ^ 0x5F356495, c.x, c.y))
 	var ht := hash(Vector3i(world_seed ^ 0x7A9E1C3B, c.x, c.y))
 
-	# Offset spans the whole cell (edge to edge) so neighbours can cluster or gap.
-	var ox := (float(posmod(hx, 10000)) / 10000.0 - 0.5) * cell
-	var oy := (float(posmod(hy, 10000)) / 10000.0 - 0.5) * cell
+	# Jittered position within the cell; smaller jitter keeps neighbours apart.
+	var jit: float = Config.LOOT_JITTER
+	var ox := (float(posmod(hx, 10000)) / 10000.0 - 0.5) * cell * jit
+	var oy := (float(posmod(hy, 10000)) / 10000.0 - 0.5) * cell * jit
 	var pos := Vector2(c) * cell + Vector2(cell * 0.5, cell * 0.5) + Vector2(ox, oy)
 
 	var roll := posmod(ht, 100)
