@@ -38,6 +38,18 @@ func _draw() -> void:
 				var px := -size.x * 0.4 + i * size.x * 0.2
 				draw_line(Vector2(px, -size.y * 0.5), Vector2(px + 6, -size.y * 0.62), edge, 2.0)
 			draw_rect(r, edge, false, 2.0)
+		"tree":
+			# wilds: trunk + broad canopy blob
+			draw_rect(Rect2(-size.x * 0.12, 0, size.x * 0.24, size.y * 0.5), color.darkened(0.3))
+			draw_circle(Vector2(0, -size.y * 0.15), size.x * 0.48, color)
+			draw_arc(Vector2(0, -size.y * 0.15), size.x * 0.48, 0.0, TAU, 20, edge, 2.0)
+		"spire":
+			# cragspire: jagged rock spike
+			var pts := PackedVector2Array([
+				Vector2(-size.x * 0.5, size.y * 0.5), Vector2(-size.x * 0.15, -size.y * 0.5),
+				Vector2(size.x * 0.2, -size.y * 0.15), Vector2(size.x * 0.5, size.y * 0.5)])
+			draw_colored_polygon(pts, color)
+			draw_polyline(pts + PackedVector2Array([pts[0]]), edge, 2.0)
 		_:
 			# ruined block
 			draw_rect(r, color)

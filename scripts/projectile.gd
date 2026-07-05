@@ -1,7 +1,7 @@
 class_name Projectile
 extends Area2D
-## The cantrip's Force Bolt. Arcane damage; with Blast tier 1+ it detonates in a
-## Fireburst AoE on impact.
+## A flying bolt. The cantrip's Force Bolt by default (arcane); wisps fire
+## physical ones. With Blast tier 1+ bolts detonate in a Fireburst AoE.
 
 var damage := 3.0
 var speed := 520.0
@@ -10,7 +10,11 @@ var life := 1.4
 var pierce := 0
 var radius := 5.0
 var explode_radius := 0.0
-var source: Node  # the Player, for siphon/insight feedback
+var explode_factor := 0.6
+var dtype := "arcane"
+var fam := ""             # family credited when routed through the player
+var tint := Color(1.0, 1.0, 0.65)
+var source: Node
 var _hit: Dictionary = {}
 
 
@@ -55,12 +59,15 @@ func _on_area_entered(area: Area2D) -> void:
 
 func _deal(e, amount: float) -> void:
 	if source != null and is_instance_valid(source) and source.has_method("deal"):
-		# route through the player so siphon/insight apply; damage_mult is
-		# already baked into `damage`, so divide it back out
+		# route through the player so crits/siphon/shatter/insight apply;
+		# global mults are baked into `damage`, divide them back out
 		var base: float = amount / max(source.damage_mult * source.boost_dmg, 0.001)
-		source.deal(e, base, "arcane", "blast" if explode_radius > 0.0 else "")
+		var credit := fam
+		if credit == "" and explode_radius > 0.0:
+			credit = "blast"
+		source.deal(e, base, dtype, credit)
 	else:
-		e.take_damage(amount, "arcane")
+		e.take_damage(amount, dtype)
 
 
 func _explode(pos: Vector2, exclude_id: int) -> void:
@@ -68,7 +75,7 @@ func _explode(pos: Vector2, exclude_id: int) -> void:
 		if e2.get_instance_id() == exclude_id:
 			continue
 		if pos.distance_to(e2.global_position) <= explode_radius:
-			_deal(e2, damage * 0.6)
+			_deal(e2, damage * explode_factor)
 	var ring := RingFx.new()
 	ring.max_radius = explode_radius
 	ring.color = Config.FAMILY_COLORS.blast
@@ -81,5 +88,5 @@ func _on_body_entered(_body: Node) -> void:
 
 
 func _draw() -> void:
-	draw_circle(Vector2.ZERO, radius, Color(1.0, 1.0, 0.65))
+	draw_circle(Vector2.ZERO, radius, tint)
 	draw_circle(Vector2.ZERO, radius * 0.5, Color.WHITE)

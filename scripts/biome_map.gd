@@ -12,15 +12,14 @@ var _sector_offset := 0.0
 
 func _init(seed_value: int) -> void:
 	world_seed = seed_value
-	_sector_order = ["commons", "thornreach", "barrows"]
-	# deterministic seed-based shuffle + rotation of the spawn sectors
+	_sector_order = ["commons", "thornreach", "barrows", "wilds", "cragspire", "hollow"]
+	# deterministic seed-based Fisher-Yates shuffle + rotation of the spawn sectors
 	var h := hash(Vector3i(seed_value, 17, -9))
-	if posmod(h, 2) == 1:
-		_sector_order.reverse()
-	var swap := posmod(h >> 3, 3)
-	var tmp = _sector_order[0]
-	_sector_order[0] = _sector_order[swap]
-	_sector_order[swap] = tmp
+	for i in range(_sector_order.size() - 1, 0, -1):
+		var j := posmod(h >> (i * 3), i + 1)
+		var tmp = _sector_order[i]
+		_sector_order[i] = _sector_order[j]
+		_sector_order[j] = tmp
 	_sector_offset = float(posmod(h >> 8, 1000)) / 1000.0 * TAU
 
 
@@ -30,9 +29,9 @@ func biome_at(pos: Vector2) -> String:
 	if dist < Config.COMMONS_RADIUS:
 		return "commons"
 	if dist < Config.SPAWN_FAIR_RADIUS:
-		# fair pinwheel: three 120° sectors, one per biome
+		# fair pinwheel: one 60° sector per biome — all six touch spawn
 		var ang := fposmod(pos.angle() + _sector_offset, TAU)
-		return _sector_order[int(ang / (TAU / 3.0)) % 3]
+		return _sector_order[int(ang / (TAU / 6.0)) % 6]
 
 	var cell: float = Config.BIOME_CELL
 	var pc := Vector2i(int(floor(pos.x / cell)), int(floor(pos.y / cell)))

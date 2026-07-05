@@ -28,17 +28,23 @@ var INSIGHT_TIERS := [14.0, 45.0, 100.0]
 # --- Biomes (organic noise blobs; the Commons surrounds spawn) ----------------
 # roster = the enemy archetypes that spawn here (weighted); obstacle = terrain style.
 var BIOMES := {
-	"commons":    {"name": "The Commons", "color": Color("#E2493B"), "family": "blast", "obstacle": "block",
+	"commons":    {"name": "The Commons", "color": Color("#E2493B"), "family": "blast",   "obstacle": "block",
 		"roster": [{"arch": "brawler", "w": 0.7}, {"arch": "darter", "w": 0.3}]},
-	"thornreach": {"name": "Thornreach",  "color": Color("#E0A02E"), "family": "ward",  "obstacle": "hedge",
+	"thornreach": {"name": "Thornreach",  "color": Color("#E0A02E"), "family": "ward",    "obstacle": "hedge",
 		"roster": [{"arch": "skirmisher", "w": 0.65}, {"arch": "bramble", "w": 0.35}]},
-	"barrows":    {"name": "The Barrows", "color": Color("#6FB03A"), "family": "drain", "obstacle": "tomb",
+	"barrows":    {"name": "The Barrows", "color": Color("#6FB03A"), "family": "drain",   "obstacle": "tomb",
 		"roster": [{"arch": "brute", "w": 0.55}, {"arch": "shambler", "w": 0.45}]},
+	"wilds":      {"name": "The Wilds",   "color": Color("#3FCDE0"), "family": "control", "obstacle": "tree",
+		"roster": [{"arch": "prowler", "w": 0.65}, {"arch": "stalker", "w": 0.35}]},
+	"cragspire":  {"name": "Cragspire",   "color": Color("#4C8DF0"), "family": "sight",   "obstacle": "spire",
+		"roster": [{"arch": "gale", "w": 0.7}, {"arch": "roc", "w": 0.3}]},
+	"hollow":     {"name": "The Hollow",  "color": Color("#9A54E4"), "family": "summon",  "obstacle": "block",
+		"roster": [{"arch": "mite", "w": 0.8}, {"arch": "broodmother", "w": 0.2}]},
 }
 var COMMONS_RADIUS := 450.0      # small guaranteed-Commons ring at spawn
 var SPAWN_FAIR_RADIUS := 2600.0  # fair pinwheel: all 3 biomes touch spawn as seed-rotated sectors
 var BIOME_CELL := 4200.0         # HUGE blobs beyond — several screens across; easy to enter, hard to leave
-var BIOME_WEIGHTS := {"commons": 0.34, "thornreach": 0.33, "barrows": 0.33}
+var BIOME_WEIGHTS := {"commons": 0.20, "thornreach": 0.16, "barrows": 0.16, "wilds": 0.16, "cragspire": 0.16, "hollow": 0.16}
 
 # Territory: enemies weaken and head home when outside their biome (no dragging
 # them out to farm weak versions — they disengage instead).
@@ -51,6 +57,9 @@ var BIOME_RESISTS := {
 	"commons":    {"arcane": 1.2},                     # brawlers melt to blast
 	"thornreach": {"arcane": 0.8, "reflect": 1.6},     # skirmishers shrug bolts, break on wards
 	"barrows":    {"arcane": 0.65, "necrotic": 1.6},   # brutes resist burst, rot fast
+	"wilds":      {"arcane": 0.85, "frost": 1.6},      # beasts evade bolts, freeze solid
+	"cragspire":  {"arcane": 0.7, "precise": 1.6},     # flyers elude generic fire, crits swat them
+	"hollow":     {"arcane": 0.8, "physical": 1.5},    # the tide shrugs magic, minions/zones grind it
 }
 
 # --- Enemy archetypes ---------------------------------------------------------
@@ -67,6 +76,15 @@ var ARCHETYPES := {
 	# Barrows
 	"brute":      {"name": "Barrow-Knight","hp": 30.0,  "speed": 42.0,  "damage": 13.0, "radius": 20.0, "xp": "large",  "behavior": "beeline"},
 	"shambler":   {"name": "Grave-swarm",  "hp": 5.0,   "speed": 36.0,  "damage": 7.0,  "radius": 11.0, "xp": "small",  "behavior": "beeline"},
+	# Wilds (beast packs)
+	"prowler":    {"name": "Prowler",      "hp": 5.0,   "speed": 150.0, "damage": 5.0,  "radius": 8.0,  "xp": "small",  "behavior": "darter"},
+	"stalker":    {"name": "Stalker",      "hp": 14.0,  "speed": 118.0, "damage": 8.0,  "radius": 12.0, "xp": "medium", "behavior": "beeline"},
+	# Cragspire (flyers: ignore terrain, swooping speed)
+	"gale":       {"name": "Gale",         "hp": 5.0,   "speed": 135.0, "damage": 5.0,  "radius": 8.0,  "xp": "small",  "behavior": "flyer"},
+	"roc":        {"name": "Roc",          "hp": 20.0,  "speed": 95.0,  "damage": 10.0, "radius": 16.0, "xp": "medium", "behavior": "flyer"},
+	# Hollow (the endless tide)
+	"mite":       {"name": "Mite",         "hp": 1.5,   "speed": 85.0,  "damage": 3.0,  "radius": 6.0,  "xp": "small",  "behavior": "beeline"},
+	"broodmother":{"name": "Broodmother",  "hp": 26.0,  "speed": 38.0,  "damage": 10.0, "radius": 18.0, "xp": "large",  "behavior": "beeline"},
 	# Boss
 	"boss":       {"name": "Reaper",       "hp": 700.0, "speed": 46.0,  "damage": 30.0, "radius": 40.0, "xp": "large",  "behavior": "beeline"},
 }

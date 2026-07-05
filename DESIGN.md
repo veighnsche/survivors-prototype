@@ -59,8 +59,9 @@ You can't hand-tune emergent builds, so you simulate paths.
 One neutral cantrip — a weak **Force Bolt** (auto-fires nearest, arcane damage) — so you can fight
 before any family unlocks.
 
-## v1 scope
-3 families / 3 biomes to prove the whole loop: **Blast (Commons)**, **Ward (Thornreach)**,
-**Drain (Barrows)** — damage / defense / sustain, maximally distinct, most reuse of existing code.
-Build order: (1) teardown weapons + tabula-rasa base, (2) biomes + essence + Affinity Wheel,
-(3) the 3 families' spells + unlock/deepen, (4) resistances.
+## Status: all six biomes + families are BUILT
+Commons/Blast, Thornreach/Ward, Barrows/Drain, Wilds/Control, Cragspire/Sight, Hollow/Summon —
+each with its roster, resistances, obstacle style, tier spells, and repeatable deepening cards.
+The level-up screen IS the affinity system: tier cards are guaranteed offers when insight-unlocked,
+and every awakened family adds deepening cards to the pool (Vital cards are just the floor).
+The spawn pinwheel guarantees all six biomes touch the spawn area in seed-random directions.

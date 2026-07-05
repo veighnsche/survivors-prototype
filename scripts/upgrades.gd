@@ -11,6 +11,8 @@ static func pool() -> Array:
 		{"id": "pickup",    "name": "Magnet",    "desc": "+25% pickup radius",  "rarity": "common", "max": 5, "locks": []},
 		{"id": "regen",     "name": "Mending",   "desc": "+0.3 HP per second",  "rarity": "rare",   "max": 4, "locks": []},
 		{"id": "focus",     "name": "Focus",     "desc": "+10% spell damage",   "rarity": "rare",   "max": 5, "locks": []},
+		{"id": "armorcard", "name": "Ironhide",  "desc": "-1 damage taken",     "rarity": "common", "max": 4, "locks": []},
+		{"id": "sharpen",   "name": "Sharpen",   "desc": "+20% cantrip damage", "rarity": "common", "max": 5, "locks": []},
 	]
 
 static func weight(rarity: String) -> float:

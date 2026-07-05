@@ -30,6 +30,7 @@ var slow_mult := 1.0
 var slow_t := 0.0
 var vuln_mult := 1.0
 var vuln_t := 0.0
+var feared_t := 0.0
 
 # skirmisher state
 var _shot_timer := 0.0
@@ -44,6 +45,10 @@ func apply_slow(factor: float, dur: float) -> void:
 func apply_vuln(mult: float, dur: float) -> void:
 	vuln_mult = max(vuln_mult, mult)
 	vuln_t = max(vuln_t, dur)
+
+
+func apply_fear(dur: float) -> void:
+	feared_t = max(feared_t, dur)
 
 
 func setup(arch: String, biome_id: String, tgt: Node2D, hp_scale: float) -> void:
@@ -64,6 +69,8 @@ func setup(arch: String, biome_id: String, tgt: Node2D, hp_scale: float) -> void
 	if stats.has("shot_interval"):
 		_shot_timer = randf_range(0.5, stats.shot_interval)
 		_strafe_dir = 1.0 if randf() < 0.5 else -1.0
+	if behavior == "flyer":
+		collision_mask = 0  # flyers soar over buildings
 
 
 func _ready() -> void:
@@ -117,14 +124,20 @@ func _physics_process(delta: float) -> void:
 			_territory_timer = 0.4
 			_outside = biome_map.biome_at(global_position) != biome
 
+	if feared_t > 0.0:
+		feared_t -= delta
+
 	var dir := _behavior_dir(delta)
-	dir = _avoid_obstacles(dir)
+	if behavior != "flyer":
+		dir = _avoid_obstacles(dir)
 	velocity = dir * speed * slow_mult
 	move_and_slide()
 
 
 func _behavior_dir(delta: float) -> Vector2:
 	var to_p := target.global_position - global_position
+	if feared_t > 0.0:
+		return -to_p.normalized()  # Dread: flee
 	# Outside home turf: disengage and head home (unless the player is right on
 	# top of us — then fight back). Prevents dragging enemies out to farm them.
 	if _outside and to_p.length() > Config.SELF_DEFENSE_RADIUS:

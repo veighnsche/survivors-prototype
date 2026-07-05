@@ -18,9 +18,23 @@ var _last_inside_pos := Vector2.ZERO
 var _seal_warn_cd := 0.0
 
 const FAMILY_SPELLS := {
-	"blast": {2: ["Nova", "Shockwave pulse when swarmed"], 3: ["Volley", "Extra bolt + bigger Nova"]},
-	"ward":  {2: ["Thorns", "Attackers take reflected damage"], 3: ["Deflect", "Bounce ranged shots back"]},
-	"drain": {2: ["Rot", "A necrotic damage-over-time aura"], 3: ["Wither", "Curse & melt the toughest foe"]},
+	"blast":   {2: ["Nova", "Shockwave pulse when swarmed"], 3: ["Volley", "Extra bolt + bigger Nova"]},
+	"ward":    {2: ["Thorns", "Attackers take reflected damage"], 3: ["Deflect", "Bounce ranged shots back"]},
+	"drain":   {2: ["Rot", "A necrotic damage-over-time aura"], 3: ["Wither", "Curse & melt the toughest foe"]},
+	"control": {2: ["Shatter", "Slowed enemies take bonus damage"], 3: ["Dread", "Periodic fear — they flee you"]},
+	"sight":   {2: ["Mark", "Auto-mark the toughest foe: +damage"], 3: ["Foresight", "25% chance to dodge any hit"]},
+	"summon":  {2: ["Hexfield", "Conjured zones that grind crowds"], 3: ["Legion", "A second wisp joins you"]},
+}
+
+# Repeatable deepening cards per family — offered once that family is awakened.
+# This is where level-up choice explodes as YOUR build develops.
+const FAMILY_MINORS := {
+	"blast":   [["blast_hotter", "Hotter Burst", "+25% blast damage", 5], ["blast_wider", "Wider Burst", "+20% burst & nova radius", 4]],
+	"ward":    [["ward_denser", "Denser Aegis", "+12 shield, +regen", 5], ["ward_sharper", "Sharper Thorns", "Thorns bite harder", 4]],
+	"drain":   [["drain_deeper", "Deeper Rot", "+25% drain damage", 5], ["drain_thicker", "Thicker Blood", "+3% lifesteal", 4]],
+	"control": [["control_chill", "Deeper Chill", "Stronger slow, +pulse damage", 4], ["control_wider", "Wider Pulse", "+20% pulse radius", 4]],
+	"sight":   [["sight_keener", "Keener Eye", "+6% crit chance", 5], ["sight_deadly", "Deadly Precision", "+40% crit damage", 4]],
+	"summon":  [["summon_fiercer", "Fiercer Wisps", "+30% wisp & hex damage", 5], ["summon_eager", "Eager Wisps", "Wisps fire faster", 4]],
 }
 
 var run_started := false
@@ -220,7 +234,7 @@ func _on_family_awakened(fam: String) -> void:
 
 func _family_summary() -> String:
 	var parts: Array = []
-	for fam in ["blast", "ward", "drain"]:
+	for fam in ["blast", "ward", "drain", "control", "sight", "summon"]:
 		var t: int = player.family_tier(fam)
 		if t > 0:
 			parts.append("%s %s" % [Config.FAMILY_NAMES[fam], ["I", "II", "III"][mini(t, 3) - 1]])
@@ -326,6 +340,17 @@ func _on_enemy_died(e) -> void:
 	RunLog.bump("kills_by_enemy", Config.ARCHETYPES[e.archetype].name)
 	if e._outside:
 		RunLog.bump("kills_special", "out_of_biome")
+	# Broodmothers burst into mites on death — the tide feeds itself.
+	if e.archetype == "broodmother":
+		for i in 4:
+			var m := Enemy.new()
+			m.setup("mite", e.biome, player, _hp_scale())
+			m.global_position = e.global_position + Vector2(randf_range(-24, 24), randf_range(-24, 24))
+			m.home_pos = e.home_pos
+			m.biome_map = biome_map
+			m.died.connect(_on_enemy_died.bind(m))
+			enemies_root.add_child(m)
+
 	var fam: String = Config.BIOMES[e.biome].family
 	if e.is_boss:
 		RunLog.event("BOSS killed (lvl %d, hp %.0f)" % [level, player.hp])
@@ -483,6 +508,17 @@ func _draw_cards(n: int) -> Array:
 				break
 
 	var elig: Array = []
+	# Deepening cards for every AWAKENED family — the affinity system IS the
+	# level-up system; the pool grows with your build.
+	for fam in FAMILY_MINORS:
+		if player.family_tier(fam) < 1:
+			continue
+		for m in FAMILY_MINORS[fam]:
+			var mid: String = m[0]
+			if banished.has(mid) or int(upgrade_levels.get(mid, 0)) >= int(m[3]):
+				continue
+			elig.append({"id": mid, "name": "%s — %s" % [Config.FAMILY_NAMES[fam], m[1]],
+				"desc": m[2], "rarity": "common", "max": m[3], "locks": []})
 	for def in Upgrades.pool():
 		var id: String = def.id
 		if banished.has(id) or locked.has(id):

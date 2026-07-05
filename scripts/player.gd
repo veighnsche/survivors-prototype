@@ -46,6 +46,26 @@ var siphon_pct := 0.0
 var rot_timer := 0.0
 var rot_radius := 0.0
 var rot_damage := 0.0
+# Control
+var frost_timer := 0.0
+var dread_timer := 0.0
+var chill_level := 0
+# Sight
+var crit_chance := 0.0
+var crit_mult := 2.0
+var dodge_chance := 0.0
+var mark_timer := 0.0
+# Summon
+var wisp_count := 0
+var wisp_timer := 0.0
+var wisp_speed_mult := 1.0
+var hex_timer := 0.0
+
+# Family deepening (repeatable cards)
+var fam_power := {"blast": 1.0, "ward": 1.0, "drain": 1.0, "control": 1.0, "sight": 1.0, "summon": 1.0}
+var blast_radius_mult := 1.0
+var control_radius_mult := 1.0
+var cantrip_mult := 1.0
 
 # Temporary boosts
 var boost_dmg := 1.0
@@ -112,6 +132,11 @@ func _process(delta: float) -> void:
 		queue_redraw()
 	_cast_brain(delta)
 	_handle_rot(delta)
+	_handle_frost(delta)
+	_handle_dread(delta)
+	_handle_mark(delta)
+	_handle_wisp(delta)
+	_handle_hex(delta)
 	_handle_contact(delta)
 
 
@@ -224,13 +249,45 @@ func _apply_tier_effects(fam: String, tier: int) -> void:
 					rot_damage = 2.2
 				3:
 					siphon_pct = 0.16
+		"control":
+			match tier:
+				1:
+					frost_timer = 0.5  # frost pulse comes alive
+				2:
+					pass  # Shatter: slowed enemies take bonus damage (handled in deal)
+				3:
+					dread_timer = 1.0  # fear pulse comes alive
+		"sight":
+			match tier:
+				1:
+					crit_chance += 0.15
+				2:
+					mark_timer = 1.0  # marking comes alive
+				3:
+					dodge_chance = 0.25
+		"summon":
+			match tier:
+				1:
+					wisp_count = 1
+				2:
+					hex_timer = 1.0  # hexfields come alive
+				3:
+					wisp_count = 2
 
 
 ## Central damage funnel: global mults, siphon, use-deepens Insight trickle.
 func deal(e, base: float, dtype: String, fam: String) -> void:
 	if e == null or not is_instance_valid(e):
 		return
-	var applied: float = e.take_damage(base * damage_mult * boost_dmg, dtype)
+	# Shatter (Control II): slowed enemies take bonus damage from everything.
+	if e.slow_t > 0.0 and family_tier("control") >= 2:
+		base *= 1.45
+	# Crits (Sight): strike true — precise damage, which flyers can't shrug.
+	var final_dtype := dtype
+	if crit_chance > 0.0 and randf() < crit_chance:
+		base *= crit_mult
+		final_dtype = "precise"
+	var applied: float = e.take_damage(base * damage_mult * boost_dmg, final_dtype)
 	RunLog.bump("damage_by_family", fam if fam != "" else "cantrip", applied)
 	RunLog.bump("damage_by_type", dtype, applied)
 	if siphon_pct > 0.0 and applied > 0.0:
@@ -323,11 +380,12 @@ func _cast_bolt(target) -> void:
 		if bolt_count > 1:
 			offset = spread * (i - (bolt_count - 1) / 2.0)
 		var p := Projectile.new()
-		p.damage = Config.CANTRIP.damage * damage_mult * boost_dmg
+		p.damage = Config.CANTRIP.damage * cantrip_mult * damage_mult * boost_dmg
 		p.speed = Config.CANTRIP.speed
 		p.life = Config.CANTRIP.life
 		p.direction = base_dir.rotated(offset)
 		p.explode_radius = explode_radius
+		p.explode_factor = 0.6 * fam_power.blast
 		p.source = self
 		p.global_position = global_position
 		projectile_parent.add_child(p)
@@ -336,7 +394,7 @@ func _cast_bolt(target) -> void:
 func _cast_nova() -> void:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if global_position.distance_to(e.global_position) <= nova_radius:
-			deal(e, nova_damage, "arcane", "blast")
+			deal(e, nova_damage * fam_power.blast, "arcane", "blast")
 	var ring := RingFx.new()
 	ring.max_radius = nova_radius
 	ring.color = Config.FAMILY_COLORS.blast
@@ -364,6 +422,105 @@ func _handle_rot(delta: float) -> void:
 		if global_position.distance_to(e.global_position) <= rot_radius:
 			deal(e, rot_damage, "necrotic", "drain")
 	queue_redraw()
+
+
+# --- Control: Frost Pulse (T1) + Dread (T3) ------------------------------------
+func _handle_frost(delta: float) -> void:
+	if family_tier("control") < 1:
+		return
+	frost_timer -= delta
+	if frost_timer > 0.0:
+		return
+	frost_timer = 2.6 * attack_speed_mult
+	var radius := 135.0 * control_radius_mult
+	var slow_factor := maxf(0.25, 0.55 - 0.05 * chill_level)
+	var any := false
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if global_position.distance_to(e.global_position) <= radius:
+			e.apply_slow(slow_factor, 2.0)
+			deal(e, 3.0 * fam_power.control, "frost", "control")
+			any = true
+	if any:
+		var ring := RingFx.new()
+		ring.max_radius = radius
+		ring.color = Config.FAMILY_COLORS.control
+		ring.global_position = global_position
+		projectile_parent.add_child(ring)
+
+
+func _handle_dread(delta: float) -> void:
+	if family_tier("control") < 3:
+		return
+	dread_timer -= delta
+	if dread_timer > 0.0:
+		return
+	dread_timer = 5.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if not e.is_boss and global_position.distance_to(e.global_position) <= 210.0:
+			e.apply_fear(1.6)
+
+
+# --- Sight: Mark (T2) ------------------------------------------------------------
+func _handle_mark(delta: float) -> void:
+	if family_tier("sight") < 2:
+		return
+	mark_timer -= delta
+	if mark_timer > 0.0:
+		return
+	mark_timer = 4.0
+	var tough = null
+	var tough_hp := 10.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if global_position.distance_to(e.global_position) <= 320.0 and e.hp > tough_hp:
+			tough_hp = e.hp
+			tough = e
+	if tough != null:
+		tough.apply_vuln(1.5, 3.0)
+		Fx.floating_text(tough.global_position + Vector2(0, -18), "marked", Config.FAMILY_COLORS.sight)
+
+
+# --- Summon: Wisps (T1/T3) + Hexfield (T2) ---------------------------------------
+func _handle_wisp(delta: float) -> void:
+	if wisp_count <= 0:
+		return
+	wisp_timer -= delta
+	if wisp_timer > 0.0:
+		return
+	wisp_timer = 1.0 * wisp_speed_mult * attack_speed_mult
+	for i in wisp_count:
+		var target := _nearest_enemy_in(520.0)
+		if target == null:
+			return
+		var off := Vector2(cos(TAU * i / maxi(wisp_count, 1)), sin(TAU * i / maxi(wisp_count, 1))) * 26.0
+		var p := Projectile.new()
+		p.damage = 4.0 * fam_power.summon * damage_mult * boost_dmg
+		p.speed = 480.0
+		p.life = 1.2
+		p.radius = 3.5
+		p.dtype = "physical"
+		p.fam = "summon"
+		p.tint = Config.FAMILY_COLORS.summon
+		p.direction = (target.global_position - (global_position + off)).normalized()
+		p.source = self
+		p.global_position = global_position + off
+		projectile_parent.add_child(p)
+
+
+func _handle_hex(delta: float) -> void:
+	if family_tier("summon") < 2:
+		return
+	hex_timer -= delta
+	if hex_timer > 0.0:
+		return
+	hex_timer = 4.5
+	var target := _nearest_enemy_in(420.0)
+	if target == null:
+		return
+	var zone := HexZone.new()
+	zone.player = self
+	zone.power = fam_power.summon
+	zone.global_position = target.global_position
+	projectile_parent.add_child(zone)
 
 
 # --- Ward: deflect + contact/thorns -------------------------------------------
@@ -396,6 +553,10 @@ func _handle_contact(delta: float) -> void:
 
 func take_damage(amount: float) -> void:
 	if dead or invuln_t > 0.0:
+		return
+	if dodge_chance > 0.0 and randf() < dodge_chance:
+		Fx.floating_text(global_position + Vector2(0, -24), "dodged", Config.FAMILY_COLORS.sight)
+		RunLog.bump("damage_taken", "dodged", amount)
 		return
 	if Sim.enabled:
 		Sim.damage_taken += max(0.0, amount - armor)
@@ -504,8 +665,50 @@ func apply_upgrade(id: String) -> void:
 			recovery += 0.3
 		"focus":
 			damage_mult *= 1.10
+		"armorcard":
+			armor += 1.0
+		"sharpen":
+			cantrip_mult *= 1.20
 		"heal":
 			hp = min(max_hp, hp + 30.0)
+		# --- family deepening cards (offered once the family is awakened) ---
+		"blast_hotter":
+			fam_power.blast *= 1.25
+		"blast_wider":
+			blast_radius_mult *= 1.20
+			_reapply_blast_radii()
+		"ward_denser":
+			shield_max += 12.0
+			shield_regen += 1.5
+		"ward_sharper":
+			thorns_damage *= 1.4 if thorns_damage > 0.0 else 1.0
+			thorns_damage = maxf(thorns_damage, 4.0)  # gives pre-T2 wards a base sting
+		"drain_deeper":
+			fam_power.drain *= 1.25
+			rot_damage *= 1.25
+		"drain_thicker":
+			siphon_pct += 0.03
+		"control_chill":
+			chill_level += 1
+			fam_power.control *= 1.15
+		"control_wider":
+			control_radius_mult *= 1.20
+		"sight_keener":
+			crit_chance += 0.06
+		"sight_deadly":
+			crit_mult += 0.4
+		"summon_fiercer":
+			fam_power.summon *= 1.30
+		"summon_eager":
+			wisp_speed_mult *= 0.85
+
+
+func _reapply_blast_radii() -> void:
+	var t := family_tier("blast")
+	if t >= 1:
+		explode_radius = (56.0 if t < 3 else 74.0) * blast_radius_mult
+	if t >= 2:
+		nova_radius = (120.0 if t < 3 else 160.0) * blast_radius_mult
 
 
 func _draw() -> void:
