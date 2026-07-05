@@ -19,6 +19,10 @@ var xp_tier := "small"
 var resists: Dictionary = {}
 
 var target: Node2D
+var biome_map: BiomeMap  # for territory checks
+var home_pos := Vector2.ZERO  # where it spawned (inside its home biome)
+var _outside := false     # currently outside its home biome → weakened, heads home
+var _territory_timer := 0.0
 var _dead := false
 var _dmg_accum := 0.0
 var _dmg_cd := 0.0
@@ -106,6 +110,13 @@ func _physics_process(delta: float) -> void:
 		if vuln_t <= 0.0:
 			vuln_mult = 1.0
 
+	# Territory: sample which biome we're in every so often (boss roams freely).
+	if not is_boss and biome_map != null:
+		_territory_timer -= delta
+		if _territory_timer <= 0.0:
+			_territory_timer = 0.4
+			_outside = biome_map.biome_at(global_position) != biome
+
 	var dir := _behavior_dir(delta)
 	dir = _avoid_obstacles(dir)
 	velocity = dir * speed * slow_mult
@@ -114,6 +125,10 @@ func _physics_process(delta: float) -> void:
 
 func _behavior_dir(delta: float) -> Vector2:
 	var to_p := target.global_position - global_position
+	# Outside home turf: disengage and head home (unless the player is right on
+	# top of us — then fight back). Prevents dragging enemies out to farm them.
+	if _outside and to_p.length() > Config.SELF_DEFENSE_RADIUS:
+		return (home_pos - global_position).normalized()
 	match behavior:
 		"kite":  # skirmisher: shoot and keep distance
 			var d := to_p.length()
@@ -164,6 +179,8 @@ func take_damage(amount: float, dtype: String = "arcane") -> float:
 	if _dead:
 		return 0.0
 	var mult: float = float(resists.get(dtype, 1.0)) * vuln_mult
+	if _outside:
+		mult *= Config.OUT_OF_BIOME_VULN  # weakened away from home turf
 	var applied := amount * mult
 	if Sim.enabled:
 		Sim.damage_dealt += applied

@@ -6,7 +6,7 @@ extends Node
 var CAMERA_ZOOM := 1.6
 
 # --- The cantrip (tabula rasa starting attack) -------------------------------
-var CANTRIP := {"damage": 3.0, "interval": 0.5, "range": 700.0, "speed": 520.0, "life": 1.4}
+var CANTRIP := {"damage": 4.5, "interval": 0.45, "range": 700.0, "speed": 520.0, "life": 1.4}
 
 # --- Families (the six corners; v1 implements blast/ward/drain) ---------------
 var FAMILY_COLORS := {
@@ -35,36 +35,41 @@ var BIOMES := {
 	"barrows":    {"name": "The Barrows", "color": Color("#6FB03A"), "family": "drain", "obstacle": "tomb",
 		"roster": [{"arch": "brute", "w": 0.55}, {"arch": "shambler", "w": 0.45}]},
 }
-var COMMONS_RADIUS := 900.0   # spawn area is always the Commons
+var COMMONS_RADIUS := 450.0   # small guaranteed-Commons ring at spawn; blobs vary right beyond it
 var BIOME_CELL := 1600.0      # size of the Voronoi cells that make the blobs
-var BIOME_WEIGHTS := {"commons": 0.2, "thornreach": 0.4, "barrows": 0.4}
+var BIOME_WEIGHTS := {"commons": 0.34, "thornreach": 0.33, "barrows": 0.33}
+
+# Territory: enemies weaken and head home when outside their biome (no dragging
+# them out to farm weak versions — they disengage instead).
+var OUT_OF_BIOME_VULN := 1.6      # damage taken multiplier while outside home biome
+var SELF_DEFENSE_RADIUS := 240.0  # but they still fight back if you're this close
 
 # Damage-type multipliers per biome (the adaptation teeth):
 # each biome resists something and is weak to its counter-family's type.
 var BIOME_RESISTS := {
 	"commons":    {"arcane": 1.2},                     # brawlers melt to blast
-	"thornreach": {"arcane": 0.7, "reflect": 1.6},     # skirmishers shrug bolts, break on wards
-	"barrows":    {"arcane": 0.55, "necrotic": 1.6},   # brutes resist burst, rot fast
+	"thornreach": {"arcane": 0.8, "reflect": 1.6},     # skirmishers shrug bolts, break on wards
+	"barrows":    {"arcane": 0.65, "necrotic": 1.6},   # brutes resist burst, rot fast
 }
 
 # --- Enemy archetypes ---------------------------------------------------------
 # name shown in the codex; behavior = how it moves/attacks.
 var ARCHETYPES := {
 	# Commons
-	"brawler":    {"name": "Husk",         "hp": 4.0,   "speed": 122.0, "damage": 6.0,  "radius": 9.0,  "xp": "small",  "behavior": "beeline"},
-	"darter":     {"name": "Stray",        "hp": 2.5,   "speed": 168.0, "damage": 4.0,  "radius": 7.0,  "xp": "small",  "behavior": "darter"},
+	"brawler":    {"name": "Husk",         "hp": 3.5,   "speed": 118.0, "damage": 5.0,  "radius": 9.0,  "xp": "small",  "behavior": "beeline"},
+	"darter":     {"name": "Stray",        "hp": 2.0,   "speed": 165.0, "damage": 3.0,  "radius": 7.0,  "xp": "small",  "behavior": "darter"},
 	# Thornreach
-	"skirmisher": {"name": "Slinger",      "hp": 8.0,   "speed": 92.0,  "damage": 7.0,  "radius": 10.0, "xp": "medium", "behavior": "kite",
-		"shot_range": 330.0, "shot_interval": 2.4, "shot_speed": 300.0},
-	"bramble":    {"name": "Bramble",      "hp": 24.0,  "speed": 40.0,  "damage": 9.0,  "radius": 15.0, "xp": "medium", "behavior": "advance_shoot",
-		"shot_range": 320.0, "shot_interval": 2.8, "shot_speed": 240.0},
+	"skirmisher": {"name": "Slinger",      "hp": 7.0,   "speed": 90.0,  "damage": 5.0,  "radius": 10.0, "xp": "medium", "behavior": "kite",
+		"shot_range": 320.0, "shot_interval": 3.4, "shot_speed": 250.0},
+	"bramble":    {"name": "Bramble",      "hp": 15.0,  "speed": 40.0,  "damage": 6.0,  "radius": 15.0, "xp": "medium", "behavior": "advance_shoot",
+		"shot_range": 300.0, "shot_interval": 3.8, "shot_speed": 220.0},
 	# Barrows
-	"brute":      {"name": "Barrow-Knight","hp": 44.0,  "speed": 42.0,  "damage": 16.0, "radius": 20.0, "xp": "large",  "behavior": "beeline"},
-	"shambler":   {"name": "Grave-swarm",  "hp": 6.0,   "speed": 34.0,  "damage": 8.0,  "radius": 11.0, "xp": "small",  "behavior": "beeline"},
+	"brute":      {"name": "Barrow-Knight","hp": 30.0,  "speed": 42.0,  "damage": 13.0, "radius": 20.0, "xp": "large",  "behavior": "beeline"},
+	"shambler":   {"name": "Grave-swarm",  "hp": 5.0,   "speed": 36.0,  "damage": 7.0,  "radius": 11.0, "xp": "small",  "behavior": "beeline"},
 	# Boss
 	"boss":       {"name": "Reaper",       "hp": 700.0, "speed": 46.0,  "damage": 30.0, "radius": 40.0, "xp": "large",  "behavior": "beeline"},
 }
-var HP_RAMP_PER_MIN := 0.45   # enemy hp scales up over the run
+var HP_RAMP_PER_MIN := 0.30   # enemy hp scales up over the run
 
 # --- Essence (biome-colored drops that feed family Insight) -------------------
 var ESSENCE_DROP_CHANCE := 0.42

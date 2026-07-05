@@ -211,12 +211,14 @@ func _family_summary() -> String:
 # --- Spawn timeline (intensity over time; type comes from the biome) -----------
 func _current_wave() -> Dictionary:
 	var t := elapsed
-	if t < 20.0:
-		return {"interval": 1.1, "batch": 1}
-	elif t < 60.0:
-		return {"interval": 0.8, "batch": 1}
-	elif t < 120.0:
-		return {"interval": 0.55, "batch": 2}
+	if t < 25.0:
+		return {"interval": 1.5, "batch": 1}
+	elif t < 70.0:
+		return {"interval": 1.0, "batch": 1}
+	elif t < 130.0:
+		return {"interval": 0.7, "batch": 1}
+	elif t < 190.0:
+		return {"interval": 0.6, "batch": 2}
 	else:
 		return {"interval": 0.5, "batch": 2}
 
@@ -246,6 +248,8 @@ func _spawn_enemy_at_ring() -> void:
 	var e := Enemy.new()
 	e.setup(_pick_arch(biome), biome, player, _hp_scale())
 	e.global_position = pos
+	e.home_pos = pos
+	e.biome_map = biome_map
 	e.died.connect(_on_enemy_died.bind(e))
 	enemies_root.add_child(e)
 
@@ -281,7 +285,10 @@ func _recycle_far_enemies() -> void:
 	for e in enemies_root.get_children():
 		if e is Enemy and not e.is_boss:
 			if e.global_position.distance_to(player.global_position) > Config.DESPAWN_RADIUS:
-				e.global_position = player.global_position + _ring_point()
+				# replace rather than teleport, so the newcomer belongs to the
+				# biome it appears in (home/archetype stay coherent)
+				e.queue_free()
+				_spawn_enemy_at_ring()
 
 
 func _on_enemy_died(e) -> void:
