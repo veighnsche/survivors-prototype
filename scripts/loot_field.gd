@@ -6,6 +6,7 @@ extends Node2D
 
 var player: Node2D
 var game
+var world_seed := 0  # per-run seed so loot placement differs each run
 
 var _active: Dictionary = {}    # cell -> node or null (empty cell)
 var _consumed: Dictionary = {}  # cell -> true (already collected)
@@ -56,8 +57,8 @@ func on_collected(c: Vector2i) -> void:
 func _make(c: Vector2i, cell: float):
 	if c == Vector2i(0, 0):
 		return null  # keep the spawn point clear
-	# Distinct seed from the obstacle field so loot and buildings don't correlate.
-	var h := hash(Vector2i(c.x + 4096, c.y - 8192))
+	# Per-run seed + a "loot" salt so it varies each run and differs from buildings.
+	var h := hash("loot:%d:%d:%d" % [world_seed, c.x, c.y])
 	if posmod(h, 100) >= int(Config.LOOT_DENSITY):
 		return null
 
@@ -67,15 +68,15 @@ func _make(c: Vector2i, cell: float):
 
 	var roll := posmod(h >> 21, 100)
 	var node
-	if roll < 60:
+	if roll < 66:
 		var g := Gold.new()
 		g.value = 3 + posmod(h >> 3, 6)
 		node = g
-	elif roll < 90:
+	elif roll < 96:
 		var p := Pickup.new()
 		p.kind = _pickup_kind(h)
 		node = p
-	else:
+	else:  # ~4% of loot cells — chests are a rare find
 		node = Chest.new()
 
 	node.player = player

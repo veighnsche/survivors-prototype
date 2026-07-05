@@ -53,13 +53,17 @@ func _ready() -> void:
 	bg.target = player
 	add_child(bg)
 
+	var map_seed := randi()  # per-run seed: every run gets a different layout
+
 	var obstacles := ObstacleField.new()
 	obstacles.player = player
+	obstacles.world_seed = map_seed
 	add_child(obstacles)
 
 	var loot := LootField.new()
 	loot.player = player
 	loot.game = self
+	loot.world_seed = map_seed
 	add_child(loot)
 
 	gems_root = Node2D.new()

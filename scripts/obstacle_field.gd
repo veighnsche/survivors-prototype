@@ -5,6 +5,7 @@ extends Node2D
 ## has structure to collide with everywhere.
 
 var player: Node2D
+var world_seed := 0  # per-run seed so each run's layout differs
 var _active: Dictionary = {}  # Vector2i -> ObstacleBody or null (empty cell)
 var _timer := 0.0
 
@@ -46,7 +47,7 @@ func _refresh() -> void:
 func _make(c: Vector2i, cell: float):
 	if c == Vector2i(0, 0):
 		return null  # keep the spawn point clear
-	var h := hash(c)
+	var h := hash("obs:%d:%d:%d" % [world_seed, c.x, c.y])
 	if posmod(h, 100) >= int(Config.OBSTACLE_DENSITY):
 		return null
 	var ox := float(posmod(h >> 7, 220)) - 110.0
