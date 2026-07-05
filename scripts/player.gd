@@ -283,6 +283,20 @@ func add_boost(kind: String) -> void:
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.25)
 
 
+## Active temporary boosts as {frac, color, letter} for the HUD countdowns.
+func active_boosts() -> Array:
+	var out: Array = []
+	if boost_dmg_t > 0.0:
+		out.append({"frac": boost_dmg_t / Config.BOOST_DURATION, "color": Color(0.8, 0.42, 0.95), "letter": "P"})
+	if boost_rate_t > 0.0:
+		out.append({"frac": boost_rate_t / Config.BOOST_DURATION, "color": Color(0.95, 0.4, 0.32), "letter": "F"})
+	if boost_speed_t > 0.0:
+		out.append({"frac": boost_speed_t / Config.BOOST_DURATION, "color": Color(0.3, 0.9, 0.95), "letter": "H"})
+	if invuln_t > 0.0:
+		out.append({"frac": invuln_t / Config.SHIELD_DURATION, "color": Color(0.92, 0.9, 0.5), "letter": "S"})
+	return out
+
+
 func take_damage(amount: float) -> void:
 	if dead or invuln_t > 0.0:
 		return

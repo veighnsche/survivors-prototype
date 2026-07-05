@@ -107,6 +107,10 @@ func _ready() -> void:
 	hud = HUD.new()
 	add_child(hud)
 
+	var boost_timers := BoostTimers.new()
+	boost_timers.player = player
+	hud.add_child(boost_timers)
+
 	card_screen = CardScreen.new()
 	card_screen.game = self
 	card_screen.picked.connect(_on_card_picked)

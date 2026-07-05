@@ -57,21 +57,26 @@ func on_collected(c: Vector2i) -> void:
 func _make(c: Vector2i, cell: float):
 	if c == Vector2i(0, 0):
 		return null  # keep the spawn point clear
-	# Vector3i hash avalanches each component (a string hash made consecutive cells
-	# line up). XOR-salt the seed so loot differs from the building layout.
-	var h := hash(Vector3i(world_seed ^ 0x1B873593, c.x, c.y))
-	if posmod(h, 100) >= int(Config.LOOT_DENSITY):
+	# Independent hashes (different salts) for presence, X, Y and type, so they're
+	# uncorrelated — otherwise items in a cell fall into a visible grid pattern.
+	var h_present := hash(Vector3i(world_seed ^ 0x1B873593, c.x, c.y))
+	if posmod(h_present, 100) >= int(Config.LOOT_DENSITY):
 		return null
 
-	var ox := float(posmod(h >> 7, 260)) - 130.0
-	var oy := float(posmod(h >> 15, 260)) - 130.0
-	var pos := Vector2(c) * cell + Vector2(cell * 0.5 + ox, cell * 0.5 + oy)
+	var hx := hash(Vector3i(world_seed ^ 0x2C1B3A9D, c.x, c.y))
+	var hy := hash(Vector3i(world_seed ^ 0x5F356495, c.x, c.y))
+	var ht := hash(Vector3i(world_seed ^ 0x7A9E1C3B, c.x, c.y))
 
-	var roll := posmod(h >> 21, 100)
+	# Offset spans the whole cell (edge to edge) so neighbours can cluster or gap.
+	var ox := (float(posmod(hx, 10000)) / 10000.0 - 0.5) * cell
+	var oy := (float(posmod(hy, 10000)) / 10000.0 - 0.5) * cell
+	var pos := Vector2(c) * cell + Vector2(cell * 0.5, cell * 0.5) + Vector2(ox, oy)
+
+	var roll := posmod(ht, 100)
 	var node
 	if roll < 86:
 		var p := Pickup.new()
-		p.kind = _pickup_kind(h)
+		p.kind = _pickup_kind(ht)
 		node = p
 	else:  # ~14% of floor loot — chests are the rarer find
 		node = Chest.new()
