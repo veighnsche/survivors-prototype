@@ -107,6 +107,11 @@ var ENEMY_AVOID_DIST := 64.0  # how far ahead enemies look to steer around build
 var INDICATOR_FADE_MIN := 320.0   # at/under this distance the beacon is full alpha
 var INDICATOR_FADE_MAX := 1200.0  # beyond this the beacon is fully faded
 
+# Loot placed ON the map (streamed per world cell, like buildings)
+var LOOT_CELL := 360.0
+var LOOT_VIEW_CELLS := 4
+var LOOT_DENSITY := 16  # percent of world cells that hold a loot item
+
 var BOMB_DAMAGE := 80.0
 var BOMB_RADIUS := 720.0
 var SHOW_DAMAGE_NUMBERS := true

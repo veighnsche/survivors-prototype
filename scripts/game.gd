@@ -57,6 +57,11 @@ func _ready() -> void:
 	obstacles.player = player
 	add_child(obstacles)
 
+	var loot := LootField.new()
+	loot.player = player
+	loot.game = self
+	add_child(loot)
+
 	gems_root = Node2D.new()
 	gems_root.name = "Gems"
 	add_child(gems_root)
@@ -235,26 +240,14 @@ func _recycle_far_enemies() -> void:
 
 func _on_enemy_died(e) -> void:
 	kills += 1
+	# Enemies drop XP gems only — gold/pickups/chests live on the map (LootField).
 	if e.is_boss:
 		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
 		for i in 5:
 			var off := Vector2(randf_range(-40.0, 40.0), randf_range(-40.0, 40.0))
 			_spawn_gem(e.global_position + off, "large")
-		_spawn_pickup(e.global_position + Vector2(30, 0), "heal")
-		_spawn_pickup(e.global_position + Vector2(-30, 0), "bomb")
-		for i in 6:
-			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
-			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
-		_spawn_chest(e.global_position + Vector2(0, 40))
 	else:
 		_spawn_gem(e.global_position, e.xp_tier)
-		if randf() < float(Config.PICKUP_DROP_CHANCE.get(e.xp_tier, 0.0)):
-			_spawn_pickup(e.global_position, _pick_pickup_kind())
-		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
-		if gd != null and randf() < float(gd.chance):
-			_spawn_gold(e.global_position, int(gd.amount))
-		if e.xp_tier == "large" and randf() < Config.TANK_CHEST_CHANCE:
-			_spawn_chest(e.global_position)
 
 
 # --- Pickups ----------------------------------------------------------------

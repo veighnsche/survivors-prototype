@@ -6,6 +6,8 @@ extends Node2D
 var value := 1
 var player: Node2D
 var game
+var field  # LootField, if placed on the map
+var origin_cell := Vector2i.ZERO
 var attracting := false
 var collected := false
 
@@ -24,6 +26,8 @@ func _process(delta: float) -> void:
 			collected = true
 			if game != null:
 				game.add_run_gold(value)
+			if field != null:
+				field.on_collected(origin_cell)
 			queue_free()
 			return
 		if attracting or d <= player.pickup_radius:

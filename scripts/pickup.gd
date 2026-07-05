@@ -7,6 +7,8 @@ const TOUCH := 28.0
 var kind := "heal"
 var player: Node2D
 var game
+var field  # LootField, if placed on the map
+var origin_cell := Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -36,6 +38,8 @@ func _collect() -> void:
 		_:
 			player.add_boost(kind)  # frenzy / power / haste / shield
 	Fx.death_pop(global_position, _color())
+	if field != null:
+		field.on_collected(origin_cell)
 	queue_free()
 
 

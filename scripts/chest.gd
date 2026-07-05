@@ -7,6 +7,8 @@ const TOUCH := 32.0
 
 var player: Node2D
 var game
+var field  # LootField, if placed on the map
+var origin_cell := Vector2i.ZERO
 
 
 func _ready() -> void:
@@ -28,6 +30,8 @@ func _process(_delta: float) -> void:
 func _open() -> void:
 	if game != null:
 		game.open_chest(global_position)
+	if field != null:
+		field.on_collected(origin_cell)
 	queue_free()
 
 
