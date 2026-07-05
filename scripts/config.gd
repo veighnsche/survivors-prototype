@@ -103,6 +103,10 @@ var OBSTACLE_VIEW_CELLS := 4
 var OBSTACLE_DENSITY := 22  # percent of world cells that hold a building
 var ENEMY_AVOID_DIST := 64.0  # how far ahead enemies look to steer around buildings
 
+# Off-screen loot indicators (chests/pickups)
+var INDICATOR_FADE_MIN := 320.0   # at/under this distance the beacon is full alpha
+var INDICATOR_FADE_MAX := 1200.0  # beyond this the beacon is fully faded
+
 var BOMB_DAMAGE := 80.0
 var BOMB_RADIUS := 720.0
 var SHOW_DAMAGE_NUMBERS := true

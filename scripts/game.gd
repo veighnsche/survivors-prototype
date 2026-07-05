@@ -88,6 +88,13 @@ func _ready() -> void:
 	Fx.layer = fx_root
 	Fx.camera = cam
 
+	var ind_layer := CanvasLayer.new()
+	ind_layer.layer = 9
+	add_child(ind_layer)
+	var indicators := EdgeIndicators.new()
+	indicators.player = player
+	ind_layer.add_child(indicators)
+
 	hud = HUD.new()
 	add_child(hud)
 

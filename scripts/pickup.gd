@@ -11,7 +11,12 @@ var game
 
 func _ready() -> void:
 	z_index = 3
+	add_to_group("guided")
 	queue_redraw()
+
+
+func indicator_color() -> Color:
+	return _color()
 
 
 func _process(_delta: float) -> void:
