@@ -362,6 +362,7 @@ func _spawn_gem(pos: Vector2, tier: String, family: String) -> void:
 
 
 func _spawn_gold(pos: Vector2, amount: int) -> void:
+	RunLog.bump("gold", "dropped", amount)
 	var g := Gold.new()
 	g.value = amount
 	g.player = player
@@ -376,6 +377,7 @@ func add_insight(family: String, amount: float) -> void:
 
 
 func add_run_gold(n: int) -> void:
+	RunLog.bump("gold", "collected", n)
 	run_gold += int(round(n * greed_mult))
 
 

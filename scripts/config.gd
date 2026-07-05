@@ -98,26 +98,29 @@ var REROLL_CHARGES := 3
 var BANISH_CHARGES := 2
 
 # --- Gold & meta-progression ------------------------------------------------------
+# Gold is ULTRA rare — a treasure, not confetti. Target: ~10-15 per half hour.
 var GOLD_DROP := {
-	"small":  {"amount": 1, "chance": 0.35},
-	"medium": {"amount": 2, "chance": 0.75},
-	"large":  {"amount": 6, "chance": 1.0},
+	"small":  {"amount": 1, "chance": 0.0015},
+	"medium": {"amount": 1, "chance": 0.008},
+	"large":  {"amount": 1, "chance": 0.05},
 }
-var GOLD_BOSS := 45
+var GOLD_BOSS := 3
 var GOLD_ATTRACT_SPEED := 600.0
 var GOLD_COLLECT_DIST := 16.0
 
+# Priced for the scarce economy: a run's haul (~5-15) buys one cheap upgrade;
+# the expensive ones are multi-run savings goals.
 var POWERUPS := [
-	{"id": "might",     "name": "Might",       "desc": "+5% spell damage",  "max": 5, "base_cost": 100, "cost_growth": 1.6},
-	{"id": "health",    "name": "Max Health",  "desc": "+12 max HP",        "max": 5, "base_cost": 80,  "cost_growth": 1.5},
-	{"id": "moveSpeed", "name": "Move Speed",  "desc": "+4% move speed",    "max": 5, "base_cost": 90,  "cost_growth": 1.55},
-	{"id": "amount",    "name": "Twin Bolt",   "desc": "+1 cantrip bolt",   "max": 2, "base_cost": 300, "cost_growth": 2.2},
-	{"id": "magnet",    "name": "Magnet",      "desc": "+15% pickup radius","max": 4, "base_cost": 70,  "cost_growth": 1.5},
-	{"id": "growth",    "name": "Growth",      "desc": "+8% XP gain",       "max": 5, "base_cost": 120, "cost_growth": 1.6},
-	{"id": "greed",     "name": "Greed",       "desc": "+10% gold gain",    "max": 5, "base_cost": 110, "cost_growth": 1.6},
-	{"id": "cooldown",  "name": "Cooldown",    "desc": "-4% cast time",     "max": 5, "base_cost": 150, "cost_growth": 1.7},
-	{"id": "armor",     "name": "Armor",       "desc": "-1 damage taken",   "max": 5, "base_cost": 100, "cost_growth": 1.6},
-	{"id": "recovery",  "name": "Recovery",    "desc": "+0.2 HP/sec",       "max": 5, "base_cost": 100, "cost_growth": 1.6},
+	{"id": "might",     "name": "Might",       "desc": "+5% spell damage",  "max": 5, "base_cost": 8,  "cost_growth": 1.7},
+	{"id": "health",    "name": "Max Health",  "desc": "+12 max HP",        "max": 5, "base_cost": 6,  "cost_growth": 1.6},
+	{"id": "moveSpeed", "name": "Move Speed",  "desc": "+4% move speed",    "max": 5, "base_cost": 7,  "cost_growth": 1.6},
+	{"id": "amount",    "name": "Twin Bolt",   "desc": "+1 cantrip bolt",   "max": 2, "base_cost": 30, "cost_growth": 2.2},
+	{"id": "magnet",    "name": "Magnet",      "desc": "+15% pickup radius","max": 4, "base_cost": 5,  "cost_growth": 1.6},
+	{"id": "growth",    "name": "Growth",      "desc": "+8% XP gain",       "max": 5, "base_cost": 9,  "cost_growth": 1.7},
+	{"id": "greed",     "name": "Greed",       "desc": "+10% gold gain",    "max": 5, "base_cost": 8,  "cost_growth": 1.7},
+	{"id": "cooldown",  "name": "Cooldown",    "desc": "-4% cast time",     "max": 5, "base_cost": 12, "cost_growth": 1.8},
+	{"id": "armor",     "name": "Armor",       "desc": "-1 damage taken",   "max": 5, "base_cost": 8,  "cost_growth": 1.7},
+	{"id": "recovery",  "name": "Recovery",    "desc": "+0.2 HP/sec",       "max": 5, "base_cost": 8,  "cost_growth": 1.7},
 ]
 
 # --- Pickups & juice ---------------------------------------------------------------
@@ -128,7 +131,7 @@ var HEAL_AMOUNT := 40.0
 var BOOST_DURATION := 8.0
 var SHIELD_DURATION := 5.0
 
-var CHEST_GOLD := 40
+var CHEST_GOLD := 2
 var CHEST_HEAL := 25.0
 
 # Obstacles / buildings
