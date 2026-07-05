@@ -111,6 +111,10 @@ func _ready() -> void:
 	boost_timers.player = player
 	hud.add_child(boost_timers)
 
+	var radar := WeaponRadar.new()
+	radar.game = self
+	hud.add_child(radar)
+
 	card_screen = CardScreen.new()
 	card_screen.game = self
 	card_screen.picked.connect(_on_card_picked)
