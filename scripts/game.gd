@@ -53,6 +53,10 @@ func _ready() -> void:
 	bg.target = player
 	add_child(bg)
 
+	var obstacles := ObstacleField.new()
+	obstacles.player = player
+	add_child(obstacles)
+
 	gems_root = Node2D.new()
 	gems_root.name = "Gems"
 	add_child(gems_root)
@@ -234,6 +238,7 @@ func _on_enemy_died(e) -> void:
 		for i in 6:
 			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
 			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
+		_spawn_chest(e.global_position + Vector2(0, 40))
 	else:
 		_spawn_gem(e.global_position, e.xp_tier)
 		if randf() < float(Config.PICKUP_DROP_CHANCE.get(e.xp_tier, 0.0)):
@@ -241,6 +246,8 @@ func _on_enemy_died(e) -> void:
 		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
 		if gd != null and randf() < float(gd.chance):
 			_spawn_gold(e.global_position, int(gd.amount))
+		if e.xp_tier == "large" and randf() < Config.TANK_CHEST_CHANCE:
+			_spawn_chest(e.global_position)
 
 
 # --- Pickups ----------------------------------------------------------------
@@ -276,6 +283,23 @@ func _spawn_gold(pos: Vector2, amount: int) -> void:
 
 func add_run_gold(n: int) -> void:
 	run_gold += int(round(n * greed_mult))
+
+
+func _spawn_chest(pos: Vector2) -> void:
+	var c := Chest.new()
+	c.player = player
+	c.game = self
+	c.global_position = pos
+	pickups_root.add_child(c)
+
+
+func open_chest(pos: Vector2) -> void:
+	Fx.death_pop(pos, Color(0.95, 0.75, 0.25))
+	Fx.shake(0.3)
+	add_run_gold(Config.CHEST_GOLD)
+	pending_levelups += randi_range(Config.CHEST_LEVELS_MIN, Config.CHEST_LEVELS_MAX)
+	if not card_screen.active:
+		_open_level_up()
 
 
 func vacuum_all_gems() -> void:

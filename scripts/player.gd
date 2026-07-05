@@ -40,6 +40,15 @@ var pickup_radius := 72.0
 var armor := 0.0
 var recovery := 0.0
 
+# Temporary boosts (from pickups)
+var boost_dmg := 1.0
+var boost_dmg_t := 0.0
+var boost_rate := 1.0  # multiplies attack interval; <1 = faster
+var boost_rate_t := 0.0
+var boost_speed := 1.0
+var boost_speed_t := 0.0
+var invuln_t := 0.0
+
 # Contact damage
 var contact_tick := 0.5
 var contact_timer := 0.0
@@ -66,7 +75,7 @@ func _ready() -> void:
 	hp = max_hp
 	z_index = 10
 	collision_layer = 1
-	collision_mask = 0
+	collision_mask = 16  # collide with obstacles/buildings
 
 	var hurtbox := Area2D.new()
 	hurtbox.collision_layer = 4
@@ -107,13 +116,14 @@ func set_class(id: String) -> void:
 func _physics_process(_delta: float) -> void:
 	if dead:
 		return
-	velocity = _input_vector() * speed
+	velocity = _input_vector() * speed * boost_speed
 	move_and_slide()
 
 
 func _process(delta: float) -> void:
 	if dead:
 		return
+	_tick_boosts(delta)
 	if recovery > 0.0 and hp < max_hp:
 		hp = min(max_hp, hp + recovery * delta)
 	_handle_attack(delta)
@@ -145,7 +155,7 @@ func _handle_attack(delta: float) -> void:
 	if attack_timer > 0.0:
 		return
 	var fired := _melee_attack() if weapon_kind == "melee" else _ranged_attack()
-	attack_timer = attack_interval if fired else 0.1
+	attack_timer = attack_interval * boost_rate if fired else 0.1
 
 
 func _nearest_enemy() -> Node2D:
@@ -179,7 +189,7 @@ func _ranged_attack() -> bool:
 
 func _spawn_projectile(dir: Vector2) -> void:
 	var p := Projectile.new()
-	p.damage = projectile_damage
+	p.damage = projectile_damage * boost_dmg
 	p.speed = projectile_speed
 	p.life = Config.PROJECTILE_LIFE
 	p.pierce = projectile_pierce
@@ -200,7 +210,7 @@ func _melee_attack() -> bool:
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var to_e: Vector2 = e.global_position - global_position
 		if to_e.length() <= melee_range and absf(aim.angle_to(to_e.normalized())) <= half:
-			e.take_damage(melee_damage)
+			e.take_damage(melee_damage * boost_dmg)
 			if melee_knockback > 0.0:
 				e.global_position += to_e.normalized() * melee_knockback
 	_spawn_melee_arc(aim)
@@ -232,8 +242,42 @@ func _handle_contact(delta: float) -> void:
 		contact_timer = contact_tick
 
 
+func _tick_boosts(delta: float) -> void:
+	if boost_dmg_t > 0.0:
+		boost_dmg_t -= delta
+		if boost_dmg_t <= 0.0:
+			boost_dmg = 1.0
+	if boost_rate_t > 0.0:
+		boost_rate_t -= delta
+		if boost_rate_t <= 0.0:
+			boost_rate = 1.0
+	if boost_speed_t > 0.0:
+		boost_speed_t -= delta
+		if boost_speed_t <= 0.0:
+			boost_speed = 1.0
+	if invuln_t > 0.0:
+		invuln_t -= delta
+
+
+func add_boost(kind: String) -> void:
+	match kind:
+		"frenzy":
+			boost_rate = 0.5
+			boost_rate_t = Config.BOOST_DURATION
+		"power":
+			boost_dmg = 1.6
+			boost_dmg_t = Config.BOOST_DURATION
+		"haste":
+			boost_speed = 1.4
+			boost_speed_t = Config.BOOST_DURATION
+		"shield":
+			invuln_t = Config.SHIELD_DURATION
+	modulate = Color(1.4, 1.4, 0.7)
+	create_tween().tween_property(self, "modulate", Color.WHITE, 0.25)
+
+
 func take_damage(amount: float) -> void:
-	if dead:
+	if dead or invuln_t > 0.0:
 		return
 	hp -= max(0.0, amount - armor)
 	Fx.shake(Config.SHAKE_ON_HIT)

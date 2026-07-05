@@ -61,7 +61,8 @@ func _tier() -> int:
 
 func _draw() -> void:
 	var t := _tier()
-	var colors := [Color(0.3, 0.85, 0.95), Color(0.45, 0.9, 0.4), Color(1.0, 0.8, 0.2)]
+	# small=cyan, medium=green, large=purple (kept off gold so it doesn't read as coins)
+	var colors := [Color(0.3, 0.85, 0.95), Color(0.45, 0.9, 0.4), Color(0.72, 0.42, 1.0)]
 	var radii := [5.0, 7.0, 10.0]
 	var r: float = radii[t] + min(6.0, value * 0.05)
 	draw_circle(Vector2.ZERO, r, colors[t])

@@ -83,9 +83,25 @@ var POWERUPS := [
 ]
 
 # --- Pickups & juice --------------------------------------------------------
-var PICKUP_DROP_CHANCE := {"small": 0.004, "medium": 0.02, "large": 0.12}
-var PICKUP_WEIGHTS := {"heal": 0.6, "magnet": 0.25, "bomb": 0.15}
+var PICKUP_DROP_CHANCE := {"small": 0.006, "medium": 0.03, "large": 0.14}
+var PICKUP_WEIGHTS := {"heal": 0.34, "magnet": 0.16, "bomb": 0.12, "frenzy": 0.13, "power": 0.13, "haste": 0.12}
 var HEAL_AMOUNT := 40.0
+
+# Temporary boosts (seconds)
+var BOOST_DURATION := 8.0
+var SHIELD_DURATION := 5.0
+
+# Chests (elite/boss reward)
+var CHEST_LEVELS_MIN := 1
+var CHEST_LEVELS_MAX := 3
+var CHEST_GOLD := 20
+var TANK_CHEST_CHANCE := 0.08
+
+# Obstacles / buildings
+var OBSTACLE_CELL := 420.0
+var OBSTACLE_VIEW_CELLS := 4
+var OBSTACLE_DENSITY := 22  # percent of world cells that hold a building
+
 var BOMB_DAMAGE := 80.0
 var BOMB_RADIUS := 720.0
 var SHOW_DAMAGE_NUMBERS := true
