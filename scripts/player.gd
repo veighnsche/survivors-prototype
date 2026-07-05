@@ -75,6 +75,7 @@ var boost_rate_t := 0.0
 var boost_speed := 1.0
 var boost_speed_t := 0.0
 var invuln_t := 0.0
+var bonus_shield := 0.0  # Barrier pickup: absorbs damage until broken, no timer
 
 # Contact damage
 var contact_tick := 0.5
@@ -562,6 +563,15 @@ func take_damage(amount: float) -> void:
 		Sim.damage_taken += max(0.0, amount - armor)
 		return
 	var remaining := maxf(0.0, amount - armor)
+	# Barrier (Shield pickup) absorbs first — it's expendable, the Aegis regens.
+	if bonus_shield > 0.0 and remaining > 0.0:
+		var soaked: float = min(bonus_shield, remaining)
+		bonus_shield -= soaked
+		remaining -= soaked
+		RunLog.bump("damage_taken", "barrier", soaked)
+		queue_redraw()
+		if remaining <= 0.0:
+			return
 	if shield_hp > 0.0 and remaining > 0.0:
 		var absorbed: float = min(shield_hp, remaining)
 		shield_hp -= absorbed
@@ -610,8 +620,8 @@ func active_boosts() -> Array:
 		out.append({"name": "Frenzy", "secs": boost_rate_t,  "frac": boost_rate_t / Config.BOOST_DURATION,  "color": Color(0.95, 0.4, 0.32)})
 	if boost_speed_t > 0.0:
 		out.append({"name": "Haste",  "secs": boost_speed_t, "frac": boost_speed_t / Config.BOOST_DURATION, "color": Color(0.3, 0.9, 0.95)})
-	if invuln_t > 0.0:
-		out.append({"name": "Shield", "secs": invuln_t,      "frac": invuln_t / Config.SHIELD_DURATION,     "color": Color(0.92, 0.9, 0.5)})
+	if bonus_shield > 0.0:
+		out.append({"name": "Barrier", "secs": bonus_shield, "frac": clampf(bonus_shield / Config.SHIELD_BARRIER, 0.0, 1.0), "color": Color(0.92, 0.9, 0.5)})
 	return out
 
 
@@ -644,7 +654,7 @@ func add_boost(kind: String) -> void:
 			boost_speed = 1.4
 			boost_speed_t = Config.BOOST_DURATION
 		"shield":
-			invuln_t = Config.SHIELD_DURATION
+			bonus_shield += Config.SHIELD_BARRIER
 	modulate = Color(1.4, 1.4, 0.7)
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.25)
 
@@ -720,3 +730,5 @@ func _draw() -> void:
 	if shield_max > 0.0:
 		var frac := shield_hp / shield_max
 		draw_arc(Vector2.ZERO, radius + 6.0, -PI / 2.0, -PI / 2.0 + frac * TAU, 30, Config.FAMILY_COLORS.ward, 2.5)
+	if bonus_shield > 0.0:
+		draw_arc(Vector2.ZERO, radius + 10.0, 0.0, TAU, 30, Color(0.92, 0.9, 0.5, 0.8), 2.5)

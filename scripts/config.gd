@@ -6,7 +6,7 @@ extends Node
 var CAMERA_ZOOM := 1.6
 
 # --- The cantrip (tabula rasa starting attack) -------------------------------
-var CANTRIP := {"damage": 4.5, "interval": 0.45, "range": 700.0, "speed": 520.0, "life": 1.4}
+var CANTRIP := {"damage": 4.5, "interval": 0.45, "range": 360.0, "speed": 520.0, "life": 0.75}
 
 # --- Families (the six corners; v1 implements blast/ward/drain) ---------------
 var FAMILY_COLORS := {
@@ -147,7 +147,7 @@ var PICKUP_WEIGHTS := {"heal": 0.34, "magnet": 0.16, "bomb": 0.12, "frenzy": 0.1
 var HEAL_AMOUNT := 40.0
 
 var BOOST_DURATION := 8.0
-var SHIELD_DURATION := 5.0
+var SHIELD_BARRIER := 40.0  # the Shield pickup grants a barrier that absorbs this much (no timer)
 
 var CHEST_GOLD := 2
 var CHEST_HEAL := 25.0
