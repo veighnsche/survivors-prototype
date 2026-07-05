@@ -6,6 +6,7 @@ extends CanvasLayer
 var time_label: Label
 var level_label: Label
 var hp_label: Label
+var class_label: Label
 var info_label: Label
 var xp_bar: ProgressBar
 var death_overlay: ColorRect
@@ -29,6 +30,7 @@ func _ready() -> void:
 	time_label.text = "00:00"
 	level_label = _make_label(Vector2(600, 60), 20)
 	hp_label = _make_label(Vector2(20, 22), 22)
+	class_label = _make_label(Vector2(20, 52), 18)
 	info_label = _make_label(Vector2(1040, 22), 22)
 
 	death_overlay = ColorRect.new()
@@ -43,6 +45,10 @@ func _ready() -> void:
 	death_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	death_label.add_theme_font_size_override("font_size", 40)
 	death_overlay.add_child(death_label)
+
+
+func set_class(display_name: String) -> void:
+	class_label.text = display_name
 
 
 func _make_label(pos: Vector2, size: int) -> Label:

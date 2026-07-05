@@ -1,25 +1,7 @@
 extends Node2D
-## The run director. Owns the world, the enemy-spawn timeline, XP gems + merging,
-## the level/XP progression, and the level-up card flow.
-
-const SPAWN_RADIUS := 800.0
-const DESPAWN_RADIUS := 1500.0
-const MAX_ENEMIES := 450
-const BOSS_TIME := 150.0
-
-# Gems
-const GEM_VALUES := {"small": 1, "medium": 5, "large": 25}
-const GEM_MERGE_DELAY := 3.5    # untouched this long before it can fuse
-const GEM_MERGE_RADIUS := 26.0
-const MAX_GEMS := 250           # over this, merging ignores the idle delay
-
-var ENEMY_TYPES := {
-	"swarmer": {"hp": 3.0,   "speed": 118.0, "damage": 5.0,  "radius": 9.0,  "color": Color(0.86, 0.36, 0.36)},
-	"grunt":   {"hp": 9.0,   "speed": 76.0,  "damage": 9.0,  "radius": 13.0, "color": Color(0.82, 0.58, 0.26)},
-	"tank":    {"hp": 34.0,  "speed": 47.0,  "damage": 15.0, "radius": 19.0, "color": Color(0.56, 0.32, 0.68)},
-	"boss":    {"hp": 520.0, "speed": 44.0,  "damage": 34.0, "radius": 40.0, "color": Color(0.92, 0.16, 0.22)},
-}
-const DROP_TIER := {"swarmer": "small", "grunt": "medium", "tank": "large", "boss": "large"}
+## The run director. Class-select gate at start, then owns the world, the enemy
+## spawn timeline, XP gems + merging, level/XP progression, and the card flow.
+## All tuning numbers come from the Config autoload.
 
 var player: Player
 var enemies_root: Node2D
@@ -27,7 +9,9 @@ var projectiles_root: Node2D
 var gems_root: Node2D
 var hud: HUD
 var card_screen: CardScreen
+var class_select: ClassSelect
 
+var run_started := false
 var elapsed := 0.0
 var kills := 0
 var spawn_accum := 0.0
@@ -43,16 +27,18 @@ var xp_to_next := 0.0
 var pending_levelups := 0
 
 # Upgrade run-state
-var upgrade_levels: Dictionary = {}  # id -> level taken
-var locked: Dictionary = {}          # id -> true (removed by a fork)
-var banished: Dictionary = {}        # id -> true (banished this run)
-var reroll_charges := 3
-var banish_charges := 2
+var upgrade_levels: Dictionary = {}
+var locked: Dictionary = {}
+var banished: Dictionary = {}
+var reroll_charges := 0
+var banish_charges := 0
 
 
 func _ready() -> void:
 	randomize()
-	xp_to_next = xp_for_level(level)
+	xp_to_next = Config.xp_for_level(level)
+	reroll_charges = Config.REROLL_CHARGES
+	banish_charges = Config.BANISH_CHARGES
 
 	player = Player.new()
 
@@ -91,11 +77,34 @@ func _ready() -> void:
 	card_screen.rerolled.connect(_on_card_rerolled)
 	add_child(card_screen)
 
+	# Gate the run behind class selection.
+	class_select = ClassSelect.new()
+	class_select.chosen.connect(_on_class_chosen)
+	add_child(class_select)
+	get_tree().paused = true
+
+	# Headless auto-start (smoke tests / future balance harness, issue #65).
+	if DisplayServer.get_name() == "headless":
+		var tc := "melee"
+		if OS.has_environment("TEST_CLASS"):
+			tc = OS.get_environment("TEST_CLASS")
+		call_deferred("_on_class_chosen", tc)
+
+
+func _on_class_chosen(id: String) -> void:
+	player.set_class(id)
+	hud.set_class(Config.CLASS[id].name)
+	class_select.queue_free()
+	run_started = true
+	get_tree().paused = false
+
 
 func _process(delta: float) -> void:
 	if game_over:
 		if Input.is_physical_key_pressed(KEY_R):
 			get_tree().reload_current_scene()
+		return
+	if not run_started:
 		return
 
 	elapsed += delta
@@ -123,7 +132,7 @@ func _current_wave() -> Dictionary:
 		return {"interval": 0.7,  "batch": 1, "weights": {"swarmer": 0.75, "grunt": 0.25}}
 	elif t < 120.0:
 		return {"interval": 0.5,  "batch": 2, "weights": {"swarmer": 0.7,  "grunt": 0.3}}
-	elif t < BOSS_TIME:
+	elif t < Config.BOSS_TIME:
 		return {"interval": 0.45, "batch": 2, "weights": {"swarmer": 0.6,  "grunt": 0.3, "tank": 0.1}}
 	else:
 		return {"interval": 0.5,  "batch": 2, "weights": {"swarmer": 0.55, "grunt": 0.3, "tank": 0.15}}
@@ -135,11 +144,11 @@ func _update_spawns(delta: float) -> void:
 	while spawn_accum >= wave.interval:
 		spawn_accum -= wave.interval
 		for i in wave.batch:
-			if enemies_root.get_child_count() >= MAX_ENEMIES:
+			if enemies_root.get_child_count() >= Config.MAX_ENEMIES:
 				break
 			_spawn_enemy(_pick_type(wave.weights))
 
-	if not boss_spawned and elapsed >= BOSS_TIME:
+	if not boss_spawned and elapsed >= Config.BOSS_TIME:
 		boss_spawned = true
 		_spawn_enemy("boss")
 
@@ -158,9 +167,9 @@ func _pick_type(weights: Dictionary) -> String:
 
 func _spawn_enemy(type: String) -> void:
 	var e := Enemy.new()
-	e.setup(ENEMY_TYPES[type], player)
+	e.setup(Config.ENEMY_TYPES[type], player)
 	e.is_boss = (type == "boss")
-	e.xp_tier = DROP_TIER[type]
+	e.xp_tier = Config.DROP_TIER[type]
 	e.global_position = player.global_position + _ring_point()
 	e.died.connect(_on_enemy_died.bind(e))
 	enemies_root.add_child(e)
@@ -168,13 +177,13 @@ func _spawn_enemy(type: String) -> void:
 
 func _ring_point() -> Vector2:
 	var ang := randf() * TAU
-	return Vector2(cos(ang), sin(ang)) * SPAWN_RADIUS
+	return Vector2(cos(ang), sin(ang)) * Config.SPAWN_RADIUS
 
 
 func _recycle_far_enemies() -> void:
 	for e in enemies_root.get_children():
 		if e is Enemy and not e.is_boss:
-			if e.global_position.distance_to(player.global_position) > DESPAWN_RADIUS:
+			if e.global_position.distance_to(player.global_position) > Config.DESPAWN_RADIUS:
 				e.global_position = player.global_position + _ring_point()
 
 
@@ -191,7 +200,7 @@ func _on_enemy_died(e) -> void:
 # --- Gems -------------------------------------------------------------------
 func _spawn_gem(pos: Vector2, tier: String) -> void:
 	var g := Gem.new()
-	g.value = GEM_VALUES[tier]
+	g.value = Config.GEM_VALUES[tier]
 	g.player = player
 	g.game = self
 	g.global_position = pos
@@ -200,21 +209,21 @@ func _spawn_gem(pos: Vector2, tier: String) -> void:
 
 func _merge_gems() -> void:
 	var gems := get_tree().get_nodes_in_group("gems")
-	var over_cap := gems.size() > MAX_GEMS
+	var over_cap := gems.size() > Config.MAX_GEMS
 	var merges := 0
 	for i in gems.size():
 		var a = gems[i]
 		if not is_instance_valid(a) or a.collected:
 			continue
-		if not over_cap and a.idle_time < GEM_MERGE_DELAY:
+		if not over_cap and a.idle_time < Config.GEM_MERGE_DELAY:
 			continue
 		for j in range(i + 1, gems.size()):
 			var b = gems[j]
 			if not is_instance_valid(b) or b.collected:
 				continue
-			if not over_cap and b.idle_time < GEM_MERGE_DELAY:
+			if not over_cap and b.idle_time < Config.GEM_MERGE_DELAY:
 				continue
-			if a.global_position.distance_to(b.global_position) <= GEM_MERGE_RADIUS:
+			if a.global_position.distance_to(b.global_position) <= Config.GEM_MERGE_RADIUS:
 				a.absorb(b)
 				merges += 1
 				break
@@ -223,18 +232,13 @@ func _merge_gems() -> void:
 
 
 # --- Progression ------------------------------------------------------------
-func xp_for_level(l: int) -> float:
-	# Fast early, then accelerating cost per level.
-	return 5.0 + 4.0 * (l - 1) + pow(max(l - 1, 0), 2.1)
-
-
 func add_xp(amount: float) -> void:
 	xp += amount
 	while xp >= xp_to_next:
 		xp -= xp_to_next
 		level += 1
 		pending_levelups += 1
-		xp_to_next = xp_for_level(level)
+		xp_to_next = Config.xp_for_level(level)
 	if pending_levelups > 0 and not card_screen.active:
 		_open_level_up()
 
@@ -252,6 +256,9 @@ func _draw_cards(n: int) -> Array:
 	var elig: Array = []
 	for def in Upgrades.pool():
 		var id: String = def.id
+		var tag: String = def.get("class", "any")
+		if tag != "any" and tag != player.class_id:
+			continue
 		if banished.has(id) or locked.has(id):
 			continue
 		if int(upgrade_levels.get(id, 0)) >= int(def.max):
@@ -274,7 +281,6 @@ func _draw_cards(n: int) -> Array:
 		elig.remove_at(idx)
 
 	if chosen.is_empty():
-		# Everything maxed/locked/banished — offer a heal so the screen is never empty.
 		chosen.append({"id": "heal", "name": "Field Medicine", "desc": "Heal 30 HP"})
 	return chosen
 

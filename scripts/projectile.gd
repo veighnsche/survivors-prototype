@@ -1,19 +1,21 @@
 class_name Projectile
 extends Area2D
-## Straight-flying auto-attack shot. Damages the first enemy it touches, then
-## despawns. No pierce in M1.
+## Straight-flying ranged shot. Damages enemies it touches; despawns once its
+## pierce budget is spent (pierce = extra enemies it can pass through).
 
-var damage := 4.0
+var damage := 5.0
 var speed := 520.0
 var direction := Vector2.RIGHT
 var life := 1.4
+var pierce := 0
 var radius := 5.0
+var _hit: Dictionary = {}  # enemies already hit, so we don't double-tick one
 
 
 func _ready() -> void:
 	z_index = 8
 	collision_layer = 8
-	collision_mask = 2  # hits enemy hitboxes
+	collision_mask = 2
 	monitoring = true
 	var cs := CollisionShape2D.new()
 	var shape := CircleShape2D.new()
@@ -33,8 +35,16 @@ func _process(delta: float) -> void:
 
 func _on_area_entered(area: Area2D) -> void:
 	var e := area.get_parent()
-	if e is Enemy:
-		e.take_damage(damage)
+	if not (e is Enemy):
+		return
+	var eid := e.get_instance_id()
+	if _hit.has(eid):
+		return
+	_hit[eid] = true
+	e.take_damage(damage)
+	if pierce > 0:
+		pierce -= 1
+	else:
 		queue_free()
 
 

@@ -1,10 +1,13 @@
 class_name Player
 extends CharacterBody2D
-## The controllable character. Moves via WASD / arrows / left stick, auto-fires
-## at the nearest enemy, takes contact damage on a tick, and hosts the two
-## fork abilities: Orbiting Blades and Damage Aura.
+## The controllable character. Class-configured (Ranged/Melee), auto-fires the
+## class weapon at the nearest enemy, takes contact damage on a tick, and hosts
+## the two shared fork abilities (Orbiting Blades, Damage Aura).
 
 signal died
+
+var class_id := "ranged"
+var weapon_kind := "ranged"
 
 @export var max_hp := 100.0
 var hp := 100.0
@@ -12,14 +15,23 @@ var speed := 210.0
 var radius := 13.0
 var color := Color(0.35, 0.76, 0.96)
 
-# Auto-attack
+# Attack cadence (shared by both weapons; scaled by Quicken)
 var attack_interval := 0.5
 var attack_timer := 0.0
-var projectile_damage := 4.0
+
+# Ranged weapon
+var projectile_damage := 5.0
 var projectile_speed := 520.0
 var projectile_range := 950.0
 var projectile_count := 1
+var projectile_pierce := 0
 var projectile_parent: Node
+
+# Melee weapon
+var melee_damage := 15.0
+var melee_range := 132.0
+var melee_arc_deg := 100.0
+var melee_knockback := 0.0
 
 # Pickups
 var pickup_radius := 72.0
@@ -45,6 +57,8 @@ var _overlapping: Dictionary = {}
 
 
 func _ready() -> void:
+	pickup_radius = Config.PICKUP_RADIUS
+	contact_tick = Config.CONTACT_TICK
 	hp = max_hp
 	z_index = 10
 	collision_layer = 1
@@ -62,6 +76,27 @@ func _ready() -> void:
 	hurtbox.area_entered.connect(_on_hurt_area_entered)
 	hurtbox.area_exited.connect(_on_hurt_area_exited)
 
+	queue_redraw()
+
+
+## Configure the player for a chosen class. Called once, pre-run. Issue #55.
+func set_class(id: String) -> void:
+	class_id = id
+	var c: Dictionary = Config.CLASS[id]
+	max_hp = c.max_hp
+	hp = max_hp
+	speed = c.speed
+	attack_interval = c.attack_interval
+	color = c.color
+	weapon_kind = "melee" if id == "melee" else "ranged"
+
+	projectile_damage = Config.PROJECTILE_DAMAGE
+	projectile_speed = Config.PROJECTILE_SPEED
+	projectile_range = Config.PROJECTILE_RANGE
+	melee_damage = Config.MELEE_DAMAGE
+	melee_range = Config.MELEE_RANGE
+	melee_arc_deg = Config.MELEE_ARC_DEG
+	melee_knockback = Config.MELEE_KNOCKBACK
 	queue_redraw()
 
 
@@ -98,22 +133,18 @@ func _input_vector() -> Vector2:
 	return v.limit_length(1.0)
 
 
-# --- Auto-attack ------------------------------------------------------------
+# --- Attack dispatch (weapon abstraction, issue #52) ------------------------
 func _handle_attack(delta: float) -> void:
 	attack_timer -= delta
 	if attack_timer > 0.0:
 		return
-	var target := _nearest_enemy()
-	if target == null:
-		attack_timer = 0.1
-		return
-	attack_timer = attack_interval
-	_fire_at(target)
+	var fired := _melee_attack() if weapon_kind == "melee" else _ranged_attack()
+	attack_timer = attack_interval if fired else 0.1
 
 
 func _nearest_enemy() -> Node2D:
 	var best: Node2D = null
-	var best_d := projectile_range * projectile_range
+	var best_d := INF
 	for e in get_tree().get_nodes_in_group("enemies"):
 		var d: float = global_position.distance_squared_to(e.global_position)
 		if d < best_d:
@@ -122,24 +153,62 @@ func _nearest_enemy() -> Node2D:
 	return best
 
 
-func _fire_at(target: Node2D) -> void:
+# --- Ranged weapon ----------------------------------------------------------
+func _ranged_attack() -> bool:
+	var target := _nearest_enemy()
+	if target == null:
+		return false
+	if global_position.distance_to(target.global_position) > projectile_range:
+		return false
 	var base_dir := (target.global_position - global_position).normalized()
 	var n := projectile_count
-	var spread := deg_to_rad(14.0)
+	var spread := deg_to_rad(Config.MULTISHOT_SPREAD_DEG)
 	for i in n:
 		var offset := 0.0
 		if n > 1:
 			offset = spread * (i - (n - 1) / 2.0)
 		_spawn_projectile(base_dir.rotated(offset))
+	return true
 
 
 func _spawn_projectile(dir: Vector2) -> void:
 	var p := Projectile.new()
 	p.damage = projectile_damage
 	p.speed = projectile_speed
+	p.life = Config.PROJECTILE_LIFE
+	p.pierce = projectile_pierce
 	p.direction = dir
 	p.global_position = global_position
 	projectile_parent.add_child(p)
+
+
+# --- Melee weapon (issue #53) -----------------------------------------------
+func _melee_attack() -> bool:
+	var target := _nearest_enemy()
+	if target == null:
+		return false
+	if global_position.distance_to(target.global_position) > melee_range:
+		return false  # nothing in reach — wait, close the gap
+	var aim := (target.global_position - global_position).normalized()
+	var half := deg_to_rad(melee_arc_deg) * 0.5
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var to_e: Vector2 = e.global_position - global_position
+		if to_e.length() <= melee_range and absf(aim.angle_to(to_e.normalized())) <= half:
+			e.take_damage(melee_damage)
+			if melee_knockback > 0.0:
+				e.global_position += to_e.normalized() * melee_knockback
+	_spawn_melee_arc(aim)
+	return true
+
+
+func _spawn_melee_arc(aim: Vector2) -> void:
+	var arc := MeleeArc.new()
+	arc.aim = aim
+	arc.reach = melee_range
+	arc.half_angle = deg_to_rad(melee_arc_deg) * 0.5
+	arc.color = Color(color.r, color.g, color.b, 0.4)
+	arc.global_position = global_position
+	projectile_parent.add_child(arc)
 
 
 # --- Contact damage ---------------------------------------------------------
@@ -184,11 +253,11 @@ func _on_hurt_area_exited(area: Area2D) -> void:
 func _handle_blades(delta: float) -> void:
 	if blades_level <= 0 or _blades.is_empty():
 		return
-	_blade_angle += delta * 2.6
+	_blade_angle += delta * Config.BLADE_SPIN
 	var n := _blades.size()
 	for i in n:
 		var ang := _blade_angle + TAU * i / n
-		_blades[i].position = Vector2(cos(ang), sin(ang)) * 48.0
+		_blades[i].position = Vector2(cos(ang), sin(ang)) * Config.BLADE_ORBIT
 	queue_redraw()
 
 
@@ -228,7 +297,7 @@ func _handle_aura(delta: float) -> void:
 	aura_timer -= delta
 	if aura_timer > 0.0:
 		return
-	aura_timer = 0.4
+	aura_timer = Config.AURA_TICK
 	var dmg := 3.0 + 3.0 * aura_level
 	for id in _aura_enemies.keys():
 		var e = _aura_enemies[id]
@@ -272,12 +341,9 @@ func apply_upgrade(id: String) -> void:
 	match id:
 		"dmg":
 			projectile_damage *= 1.25
+			melee_damage *= 1.25
 		"firerate":
 			attack_interval = max(0.08, attack_interval * 0.85)
-		"multishot":
-			projectile_count += 1
-		"projspeed":
-			projectile_speed *= 1.20
 		"movespeed":
 			speed *= 1.10
 		"pickup":
@@ -285,6 +351,18 @@ func apply_upgrade(id: String) -> void:
 		"maxhp":
 			max_hp += 20.0
 			hp += 20.0
+		"multishot":
+			projectile_count += 1
+		"projspeed":
+			projectile_speed *= 1.20
+		"pierce":
+			projectile_pierce += 1
+		"arc":
+			melee_arc_deg = min(200.0, melee_arc_deg + 18.0)
+		"cleave":
+			melee_range *= 1.18
+		"knockback":
+			melee_knockback += 40.0
 		"blades":
 			blades_level += 1
 			_update_blades()

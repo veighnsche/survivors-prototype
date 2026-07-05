@@ -3,9 +3,6 @@ extends Node2D
 ## An XP drop. Sits on the floor accruing idle_time (used for merging), flies to
 ## the player once inside pickup radius, grants XP on contact.
 
-const ATTRACT_SPEED := 580.0
-const COLLECT_DIST := 15.0
-
 var value := 1
 var player: Node2D
 var game  # the run director, for add_xp()
@@ -26,12 +23,12 @@ func _process(delta: float) -> void:
 		return
 	if player != null and is_instance_valid(player):
 		var d := global_position.distance_to(player.global_position)
-		if d <= COLLECT_DIST:
+		if d <= Config.GEM_COLLECT_DIST:
 			_collect()
 			return
 		if attracting or d <= player.pickup_radius:
 			attracting = true
-			global_position = global_position.move_toward(player.global_position, ATTRACT_SPEED * delta)
+			global_position = global_position.move_toward(player.global_position, Config.GEM_ATTRACT_SPEED * delta)
 			return
 	idle_time += delta
 
