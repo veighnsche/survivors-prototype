@@ -84,6 +84,8 @@ func _physics_process(delta: float) -> void:
 func take_damage(amount: float) -> void:
 	if _dead:
 		return
+	if Sim.enabled:
+		Sim.damage_dealt += min(amount, max(hp, 0.0))
 	hp -= amount
 	if Config.SHOW_DAMAGE_NUMBERS:
 		_dmg_accum += amount

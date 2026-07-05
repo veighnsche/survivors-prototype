@@ -14,6 +14,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 Config="*res://scripts/config.gd"
 Fx="*res://scripts/fx.gd"
 Save="*res://scripts/save.gd"
+Sim="*res://scripts/sim.gd"
 
 [display]
 

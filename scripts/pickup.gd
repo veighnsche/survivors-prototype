@@ -68,3 +68,5 @@ func _draw() -> void:
 	draw_arc(Vector2.ZERO, 12.0, 0.0, TAU, 22, Color(1, 1, 1, 0.85), 2.0)
 	var letter: String = {"heal": "+", "magnet": "M", "bomb": "B", "frenzy": "F", "power": "P", "haste": "H", "shield": "S"}.get(kind, "?")
 	draw_string(ThemeDB.fallback_font, Vector2(-5, 6), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.1, 0.1, 0.12))
+	var pname: String = {"heal": "Heal", "magnet": "Magnet", "bomb": "Bomb", "frenzy": "Frenzy", "power": "Power", "haste": "Haste", "shield": "Shield"}.get(kind, "?")
+	draw_string(ThemeDB.fallback_font, Vector2(-60, -20), pname, HORIZONTAL_ALIGNMENT_CENTER, 120, 13, c)

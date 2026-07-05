@@ -13,7 +13,7 @@ var CLASS := {
 # Base stats; upgrades mutate a per-run copy on the player, so investment in a
 # weapon persists even if you swap away and back.
 var WEAPONS := {
-	"fists":  {"name": "Fists",      "color": Color(0.85, 0.80, 0.62), "damage": 6.0,  "interval": 0.34, "range": 76.0,  "targets": 1},
+	"fists":  {"name": "Fists",      "color": Color(0.85, 0.80, 0.62), "damage": 2.0,  "interval": 0.34, "range": 76.0,  "targets": 1},
 	"ranged": {"name": "Blaster",    "color": Color(0.35, 0.76, 0.96), "damage": 5.0,  "interval": 0.50, "range": 950.0, "speed": 520.0, "count": 1, "pierce": 0},
 	"melee":  {"name": "Cleaver",    "color": Color(0.95, 0.55, 0.28), "damage": 15.0, "interval": 0.60, "range": 132.0, "arc": 100.0, "knockback": 0.0},
 	"chain":  {"name": "Tesla Coil", "color": Color(0.58, 0.85, 1.0),  "damage": 7.0,  "interval": 0.85, "range": 500.0, "jumps": 3, "jump_range": 220.0, "falloff": 0.65},

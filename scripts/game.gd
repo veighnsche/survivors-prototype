@@ -122,9 +122,15 @@ func _ready() -> void:
 	_apply_meta()
 	run_started = true
 
+	if Sim.enabled:
+		player.set_weapon(Sim.weapon)  # force the weapon under test
+		Engine.time_scale = 6.0        # fast-forward wall-clock (physics stays fixed-step)
+
 
 ## Apply permanent PowerUps (bought with gold) at run start.
 func _apply_meta() -> void:
+	if Sim.enabled:
+		return  # sim measures BASE weapons, no meta noise
 	player.damage_mult *= (1.0 + 0.05 * Save.powerup_level("might"))
 	player.max_hp += 12.0 * Save.powerup_level("health")
 	player.hp = player.max_hp
@@ -147,6 +153,9 @@ func _process(delta: float) -> void:
 		return
 
 	elapsed += delta
+	if Sim.enabled and elapsed >= Sim.duration:
+		_sim_report()
+		return
 	_update_spawns(delta)
 
 	cleanup_timer -= delta
@@ -359,7 +368,17 @@ func _merge_gems() -> void:
 
 
 # --- Progression ------------------------------------------------------------
+func _sim_report() -> void:
+	var kps: float = kills / maxf(elapsed, 0.001)
+	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)
+	print("SIM_RESULT weapon=%s time=%.0f kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f enemies=%d" % [
+		Sim.weapon, elapsed, kills, kps, dps, Sim.damage_taken, enemies_root.get_child_count()])
+	get_tree().quit()
+
+
 func add_xp(amount: float) -> void:
+	if Sim.enabled:
+		return  # no leveling in sim — measure the base weapon
 	xp += amount * growth_mult
 	while xp >= xp_to_next:
 		xp -= xp_to_next

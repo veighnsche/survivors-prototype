@@ -40,3 +40,4 @@ func _draw() -> void:
 	draw_rect(Rect2(-15, -11, 30, 22), Color(0.9, 0.68, 0.22), false, 2.5)
 	draw_rect(Rect2(-15, -3, 30, 5), Color(0.9, 0.68, 0.22))
 	draw_circle(Vector2(0, 0), 2.5, Color(0.95, 0.85, 0.35))
+	draw_string(ThemeDB.fallback_font, Vector2(-60, -22), "Chest", HORIZONTAL_ALIGNMENT_CENTER, 120, 13, Color(0.95, 0.78, 0.28))

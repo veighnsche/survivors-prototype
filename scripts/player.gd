@@ -127,6 +127,8 @@ func _process(delta: float) -> void:
 
 # --- Input ------------------------------------------------------------------
 func _input_vector() -> Vector2:
+	if Sim.enabled:
+		return _sim_bot_vector()
 	var v := Vector2.ZERO
 	if Input.is_physical_key_pressed(KEY_W) or Input.is_physical_key_pressed(KEY_UP):
 		v.y -= 1.0
@@ -140,6 +142,15 @@ func _input_vector() -> Vector2:
 	if gp.length() > 0.25:
 		v = gp
 	return v.limit_length(1.0)
+
+
+## Sim bot: kite directly away from the nearest enemy so the horde clumps behind.
+func _sim_bot_vector() -> Vector2:
+	var e := _nearest_enemy_in(99999.0)
+	if e == null:
+		return Vector2.RIGHT
+	var away := global_position - e.global_position
+	return away.normalized() if away.length() > 1.0 else Vector2.RIGHT
 
 
 # --- Weapon swap (E tap) / drop-to-fists (E long press) ---------------------
@@ -379,6 +390,9 @@ func active_boosts() -> Array:
 func take_damage(amount: float) -> void:
 	if dead or invuln_t > 0.0:
 		return
+	if Sim.enabled:
+		Sim.damage_taken += max(0.0, amount - armor)
+		return  # invincible in sim so every weapon runs the full duration
 	hp -= max(0.0, amount - armor)
 	Fx.shake(Config.SHAKE_ON_HIT)
 	modulate = Color(1.7, 0.6, 0.6)
