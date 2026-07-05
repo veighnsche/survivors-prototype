@@ -298,11 +298,15 @@ func deal(e, base: float, dtype: String, fam: String) -> void:
 		add_insight(fam, 0.008)
 
 
-func _eff(e, dtype: String) -> float:
-	return float(e.resists.get(dtype, 1.0))
+# --- Caster brain: cast whatever deals the most damage RIGHT NOW ---------------
+## Expected damage of one hit on e, with resist/vuln/out-of-biome and Shatter.
+func _est(e, base: float, dtype: String) -> float:
+	var v: float = base * e.damage_mult_for(dtype)
+	if e.slow_t > 0.0 and family_tier("control") >= 2:
+		v *= 1.45
+	return v
 
 
-# --- Caster brain: pick the best offensive for the situation ------------------
 func _cast_brain(delta: float) -> void:
 	bolt_cd -= delta
 	nova_cd -= delta
@@ -312,41 +316,45 @@ func _cast_brain(delta: float) -> void:
 	var best := ""
 	var best_target = null
 
+	# Bolt: primary hit (per bolt) + Fireburst splash around the target.
 	if bolt_cd <= 0.0:
 		var t := _nearest_enemy_in(Config.CANTRIP.range)
 		if t != null:
-			var s: float = 1.0 * _eff(t, "arcane")
-			if s > best_score:
-				best_score = s
+			var per_bolt: float = Config.CANTRIP.damage * cantrip_mult
+			var dmg: float = _est(t, per_bolt, "arcane") * bolt_count
+			if explode_radius > 0.0:
+				for e2 in get_tree().get_nodes_in_group("enemies"):
+					if e2 != t and t.global_position.distance_to(e2.global_position) <= explode_radius:
+						dmg += _est(e2, per_bolt * 0.6 * fam_power.blast, "arcane")
+			if dmg > best_score:
+				best_score = dmg
 				best = "bolt"
 				best_target = t
 
+	# Nova: sum of expected damage over everything in the ring.
 	if nova_radius > 0.0 and nova_cd <= 0.0:
-		var cnt := 0
-		var effsum := 0.0
+		var total := 0.0
 		for e in get_tree().get_nodes_in_group("enemies"):
 			if global_position.distance_to(e.global_position) <= nova_radius:
-				cnt += 1
-				effsum += _eff(e, "arcane")
-		if cnt >= 2:
-			var s: float = cnt * (effsum / cnt) * 0.7
-			if s > best_score:
-				best_score = s
-				best = "nova"
+				total += _est(e, nova_damage * fam_power.blast, "arcane")
+		if total > best_score:
+			best_score = total
+			best = "nova"
 
+	# Wither: direct necrotic hit + the value of the vulnerability it applies.
 	if int(granted_tier.drain) >= 3 and wither_cd <= 0.0:
 		var tough = null
-		var tough_hp := 14.0
+		var tough_score := 0.0
 		for e in get_tree().get_nodes_in_group("enemies"):
-			if global_position.distance_to(e.global_position) <= 300.0 and e.hp > tough_hp:
-				tough_hp = e.hp
-				tough = e
-		if tough != null:
-			var s: float = (tough_hp / 30.0) * _eff(tough, "necrotic")
-			if s > best_score:
-				best_score = s
-				best = "wither"
-				best_target = tough
+			if global_position.distance_to(e.global_position) <= 300.0 and e.hp > 14.0:
+				var s: float = _est(e, 14.0, "necrotic") + minf(e.hp, 24.0) * 0.5
+				if s > tough_score:
+					tough_score = s
+					tough = e
+		if tough != null and tough_score > best_score:
+			best_score = tough_score
+			best = "wither"
+			best_target = tough
 
 	match best:
 		"bolt":

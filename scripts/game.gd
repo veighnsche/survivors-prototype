@@ -88,6 +88,12 @@ func _ready() -> void:
 	obstacles.biome_map = biome_map
 	add_child(obstacles)
 
+	var borders := BorderField.new()
+	borders.player = player
+	borders.biome_map = biome_map
+	borders.world_seed = map_seed
+	add_child(borders)
+
 	var loot := LootField.new()
 	loot.player = player
 	loot.game = self

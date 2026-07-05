@@ -187,14 +187,21 @@ func _avoid_obstacles(dir: Vector2) -> Vector2:
 	return dir
 
 
+## The full multiplier an incoming hit of this type would get right now
+## (resistance x vulnerability x out-of-biome weakness) — used by the caster
+## brain to predict damage before committing to a spell.
+func damage_mult_for(dtype: String) -> float:
+	var mult: float = float(resists.get(dtype, 1.0)) * vuln_mult
+	if _outside:
+		mult *= Config.OUT_OF_BIOME_VULN
+	return mult
+
+
 ## Damage funnel with biome resistances + vulnerability. Returns applied damage.
 func take_damage(amount: float, dtype: String = "arcane") -> float:
 	if _dead:
 		return 0.0
-	var mult: float = float(resists.get(dtype, 1.0)) * vuln_mult
-	if _outside:
-		mult *= Config.OUT_OF_BIOME_VULN  # weakened away from home turf
-	var applied := amount * mult
+	var applied := amount * damage_mult_for(dtype)
 	if Sim.enabled:
 		Sim.damage_dealt += applied
 	hp -= applied

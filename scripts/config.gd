@@ -152,6 +152,9 @@ var SHIELD_BARRIER := 40.0  # the Shield pickup grants a barrier that absorbs th
 var CHEST_GOLD := 2
 var CHEST_HEAL := 25.0
 
+# Biome border walls
+var WALL_GAP_PCT := 30  # percent of border gate-cells left open as entrances
+
 # Obstacles / buildings
 var OBSTACLE_CELL := 420.0
 var OBSTACLE_VIEW_CELLS := 4
