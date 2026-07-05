@@ -13,6 +13,7 @@ var hud: HUD
 var card_screen: CardScreen
 
 var run_started := false
+var _shot_done := false
 var elapsed := 0.0
 var kills := 0
 var spawn_accum := 0.0
@@ -160,6 +161,10 @@ func _process(delta: float) -> void:
 	elapsed += delta
 	if Sim.enabled and elapsed >= Sim.duration:
 		_sim_report()
+		return
+	if OS.has_environment("SHOT") and not _shot_done and elapsed > 2.0:
+		_shot_done = true
+		_capture_shot()
 		return
 	_update_spawns(delta)
 
@@ -373,6 +378,13 @@ func _merge_gems() -> void:
 
 
 # --- Progression ------------------------------------------------------------
+func _capture_shot() -> void:
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	img.save_png(OS.get_environment("SHOT"))
+	get_tree().quit()
+
+
 func _sim_report() -> void:
 	var kps: float = kills / maxf(elapsed, 0.001)
 	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)

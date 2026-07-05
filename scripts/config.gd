@@ -39,7 +39,7 @@ var MELEE_ARC_DEG := 100.0
 var MELEE_KNOCKBACK := 0.0  # base; raised by the Heavy Blows card
 
 # --- Display ----------------------------------------------------------------
-var CAMERA_ZOOM := 1.0  # 1.0 = content scales purely with the (maximized) window
+var CAMERA_ZOOM := 2.5  # zooms the world in so the player/enemies read at a normal size
 
 # --- Player misc ------------------------------------------------------------
 var PICKUP_RADIUS := 72.0
