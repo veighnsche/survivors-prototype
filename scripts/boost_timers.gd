@@ -24,19 +24,23 @@ func _draw() -> void:
 
 	var vp := get_viewport_rect().size
 	var r := 22.0
-	var spacing := 58.0
+	var spacing := 82.0
 	var total_w := spacing * (boosts.size() - 1)
-	var start := Vector2(vp.x * 0.5 - total_w * 0.5, vp.y - 58.0)
+	var start := Vector2(vp.x * 0.5 - total_w * 0.5, vp.y - 56.0)
 
 	for i in boosts.size():
 		var b = boosts[i]
 		var center := start + Vector2(spacing * i, 0.0)
 		var col: Color = b.color
 		var frac: float = clampf(b.frac, 0.0, 1.0)
-		var letter: String = b.letter
+		var bname: String = b.name
+		var secs := int(ceil(float(b.secs)))
 
 		draw_circle(center, r, Color(0, 0, 0, 0.5))
 		draw_arc(center, r, 0.0, TAU, 40, Color(col.r, col.g, col.b, 0.3), 2.0)
 		if frac > 0.0:
 			draw_arc(center, r - 4.0, -PI / 2.0, -PI / 2.0 + frac * TAU, 48, col, 5.0)
-		draw_string(ThemeDB.fallback_font, center + Vector2(-5, 6), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, col)
+		# remaining seconds inside the ring
+		draw_string(ThemeDB.fallback_font, center + Vector2(-6, 6), str(secs), HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.WHITE)
+		# readable name above the ring
+		draw_string(ThemeDB.fallback_font, center + Vector2(-40, -r - 8), bname, HORIZONTAL_ALIGNMENT_CENTER, 80, 15, col)

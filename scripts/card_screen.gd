@@ -95,7 +95,11 @@ func _rebuild() -> void:
 		var lvltxt := ""
 		if def.has("max"):
 			lvltxt = "\n\nLv %d → %d" % [lvl, lvl + 1]
-		b.text = "%d. %s\n\n%s%s" % [idx, def.name, def.desc, lvltxt]
+		var wtag: String = def.get("weapon", "any")
+		var source := "Shared"
+		if wtag != "any" and Config.WEAPONS.has(wtag):
+			source = Config.WEAPONS[wtag].name
+		b.text = "%d. %s\n(%s)\n\n%s%s" % [idx, def.name, source, def.desc, lvltxt]
 		var this_id: String = def.id
 		b.pressed.connect(func(): _on_card(this_id))
 		_cards_box.add_child(b)

@@ -364,13 +364,13 @@ func _handle_contact(delta: float) -> void:
 func active_boosts() -> Array:
 	var out: Array = []
 	if boost_dmg_t > 0.0:
-		out.append({"frac": boost_dmg_t / Config.BOOST_DURATION, "color": Color(0.8, 0.42, 0.95), "letter": "P"})
+		out.append({"name": "Power",  "secs": boost_dmg_t,   "frac": boost_dmg_t / Config.BOOST_DURATION,   "color": Color(0.8, 0.42, 0.95)})
 	if boost_rate_t > 0.0:
-		out.append({"frac": boost_rate_t / Config.BOOST_DURATION, "color": Color(0.95, 0.4, 0.32), "letter": "F"})
+		out.append({"name": "Frenzy", "secs": boost_rate_t,  "frac": boost_rate_t / Config.BOOST_DURATION,  "color": Color(0.95, 0.4, 0.32)})
 	if boost_speed_t > 0.0:
-		out.append({"frac": boost_speed_t / Config.BOOST_DURATION, "color": Color(0.3, 0.9, 0.95), "letter": "H"})
+		out.append({"name": "Haste",  "secs": boost_speed_t, "frac": boost_speed_t / Config.BOOST_DURATION, "color": Color(0.3, 0.9, 0.95)})
 	if invuln_t > 0.0:
-		out.append({"frac": invuln_t / Config.SHIELD_DURATION, "color": Color(0.92, 0.9, 0.5), "letter": "S"})
+		out.append({"name": "Shield", "secs": invuln_t,      "frac": invuln_t / Config.SHIELD_DURATION,     "color": Color(0.92, 0.9, 0.5)})
 	return out
 
 
