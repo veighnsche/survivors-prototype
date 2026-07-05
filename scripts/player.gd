@@ -57,6 +57,11 @@ var aura_radius := 0.0
 var aura_timer := 0.0
 var _aura_enemies: Dictionary = {}
 
+var nova_level := 0
+var nova_timer := 0.0
+var frost_level := 0
+var frost_timer := 0.0
+
 var dead := false
 var _overlapping: Dictionary = {}
 
@@ -123,6 +128,8 @@ func _process(delta: float) -> void:
 	_handle_contact(delta)
 	_handle_blades(delta)
 	_handle_aura(delta)
+	_handle_nova(delta)
+	_handle_frost(delta)
 
 
 # --- Input ------------------------------------------------------------------
@@ -594,6 +601,48 @@ func _on_aura_exit(area: Area2D) -> void:
 		_aura_enemies.erase(e.get_instance_id())
 
 
+# --- Skill: Nova (periodic shockwave) ---------------------------------------
+func _handle_nova(delta: float) -> void:
+	if nova_level <= 0:
+		return
+	nova_timer -= delta
+	if nova_timer > 0.0:
+		return
+	nova_timer = maxf(1.5, 3.0 - 0.2 * nova_level)
+	var radius := 90.0 + 30.0 * nova_level
+	var dmg := _dmg(8.0 + 6.0 * nova_level)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if global_position.distance_to(e.global_position) <= radius:
+			e.take_damage(dmg)
+	_spawn_ring(radius, Color(1.0, 0.8, 0.3, 0.9))
+
+
+# --- Skill: Frost Ring (periodic slow + light damage) -----------------------
+func _handle_frost(delta: float) -> void:
+	if frost_level <= 0:
+		return
+	frost_timer -= delta
+	if frost_timer > 0.0:
+		return
+	frost_timer = maxf(2.0, 4.0 - 0.2 * frost_level)
+	var radius := 100.0 + 30.0 * frost_level
+	var dmg := _dmg(3.0 + 2.0 * frost_level)
+	var slow_factor := maxf(0.3, 0.6 - 0.05 * frost_level)
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if global_position.distance_to(e.global_position) <= radius:
+			e.take_damage(dmg)
+			e.apply_slow(slow_factor, 2.0)
+	_spawn_ring(radius, Color(0.5, 0.8, 1.0, 0.9))
+
+
+func _spawn_ring(radius: float, col: Color) -> void:
+	var ring := RingFx.new()
+	ring.max_radius = radius
+	ring.color = col
+	ring.global_position = global_position
+	projectile_parent.add_child(ring)
+
+
 # --- Upgrades ---------------------------------------------------------------
 func apply_upgrade(id: String) -> void:
 	match id:
@@ -612,6 +661,10 @@ func apply_upgrade(id: String) -> void:
 		"aura":
 			aura_level += 1
 			_update_aura()
+		"nova":
+			nova_level += 1
+		"frost":
+			frost_level += 1
 		"fists_dmg":
 			weapon_stats.fists.damage *= 1.30
 		"fists_speed":

@@ -11,8 +11,11 @@ static func pool() -> Array:
 		{"id": "pickup",    "name": "Magnet",          "desc": "+25% pickup radius",  "rarity": "common", "max": 5, "locks": [],         "weapon": "any"},
 		{"id": "maxhp",     "name": "Vitality",        "desc": "+20 max HP, heal 20", "rarity": "common", "max": 5, "locks": [],         "weapon": "any"},
 		{"id": "quicken",   "name": "Quicken",         "desc": "+12% attack speed",   "rarity": "common", "max": 6, "locks": [],         "weapon": "any"},
-		{"id": "blades",    "name": "Orbiting Blades", "desc": "Blades circle you.\nLocks Aura.",  "rarity": "rare", "max": 3, "locks": ["aura"],   "weapon": "any"},
-		{"id": "aura",      "name": "Damage Aura",     "desc": "Damaging field.\nLocks Blades.",   "rarity": "rare", "max": 3, "locks": ["blades"], "weapon": "any"},
+		# Skills stack — you build a set alongside your weapon.
+		{"id": "blades", "name": "Orbiting Blades", "desc": "Blades circle you",        "rarity": "rare", "max": 4, "locks": [], "weapon": "any"},
+		{"id": "aura",   "name": "Damage Aura",     "desc": "Constant damaging field",  "rarity": "rare", "max": 4, "locks": [], "weapon": "any"},
+		{"id": "nova",   "name": "Nova",            "desc": "Periodic shockwave burst", "rarity": "rare", "max": 4, "locks": [], "weapon": "any"},
+		{"id": "frost",  "name": "Frost Ring",      "desc": "Periodic pulse, slows foes","rarity": "rare", "max": 4, "locks": [], "weapon": "any"},
 		# --- Fists ---
 		{"id": "fists_dmg",       "name": "Brawler",  "desc": "+30% fist damage",  "rarity": "common", "max": 5, "locks": [],              "weapon": "fists"},
 		{"id": "fists_speed",     "name": "Rapid Jab","desc": "+15% fist speed",   "rarity": "common", "max": 5, "locks": [],              "weapon": "fists"},

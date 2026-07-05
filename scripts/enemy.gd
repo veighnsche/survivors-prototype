@@ -17,6 +17,13 @@ var target: Node2D
 var _dead := false
 var _dmg_accum := 0.0
 var _dmg_cd := 0.0
+var slow_mult := 1.0
+var slow_t := 0.0
+
+
+func apply_slow(factor: float, dur: float) -> void:
+	slow_mult = min(slow_mult, factor)
+	slow_t = max(slow_t, dur)
 
 
 func setup(stats: Dictionary, tgt: Node2D) -> void:
@@ -65,6 +72,10 @@ func _physics_process(delta: float) -> void:
 			_dmg_cd = 0.18
 	if _dead or target == null or not is_instance_valid(target):
 		return
+	if slow_t > 0.0:
+		slow_t -= delta
+		if slow_t <= 0.0:
+			slow_mult = 1.0
 	var dir := (target.global_position - global_position).normalized()
 
 	# Obstacle avoidance: if a building is straight ahead, slide the heading along
@@ -77,7 +88,7 @@ func _physics_process(delta: float) -> void:
 		var slid := dir - n * dir.dot(n)
 		dir = slid.normalized() if slid.length() > 0.05 else Vector2(-n.y, n.x)
 
-	velocity = dir * speed
+	velocity = dir * speed * slow_mult
 	move_and_slide()
 
 
