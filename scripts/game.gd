@@ -61,6 +61,7 @@ func _ready() -> void:
 
 	bg = BackgroundGrid.new()
 	bg.target = player
+	bg.biome_map = biome_map
 	add_child(bg)
 
 	var obstacles := ObstacleField.new()
@@ -187,7 +188,6 @@ func _process(delta: float) -> void:
 		_merge_gems()
 
 	var biome := biome_map.biome_at(player.global_position)
-	bg.tint_color = Config.BIOMES[biome].color
 	if biome != _cur_biome:
 		_cur_biome = biome
 		hud.show_banner("Entering %s" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)

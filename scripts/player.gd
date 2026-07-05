@@ -135,6 +135,8 @@ func _input_vector() -> Vector2:
 
 
 func _sim_bot_vector() -> Vector2:
+	if OS.has_environment("DBG_STAND"):
+		return Vector2.ZERO
 	var e := _nearest_enemy_in(99999.0)
 	if e == null:
 		return Vector2.RIGHT
@@ -295,7 +297,7 @@ func _cast_brain(delta: float) -> void:
 			_cast_wither(best_target)
 			wither_cd = 4.0
 		_:
-			bolt_cd = 0.1  # nothing worth casting; check again shortly
+			pass  # nothing worth casting; cooldowns keep ticking, brain re-runs next frame
 
 
 func _nearest_enemy_in(reach: float) -> Node2D:
