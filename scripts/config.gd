@@ -92,10 +92,8 @@ var BOOST_DURATION := 8.0
 var SHIELD_DURATION := 5.0
 
 # Chests (elite/boss reward)
-var CHEST_LEVELS_MIN := 1
-var CHEST_LEVELS_MAX := 3
-var CHEST_GOLD := 20
-var TANK_CHEST_CHANCE := 0.08
+var CHEST_GOLD := 40
+var CHEST_HEAL := 25.0
 
 # Obstacles / buildings
 var OBSTACLE_CELL := 420.0

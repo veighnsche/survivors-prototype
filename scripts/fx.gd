@@ -15,6 +15,16 @@ func damage_number(pos: Vector2, amount: float) -> void:
 	layer.add_child(d)
 
 
+func floating_text(pos: Vector2, text: String, color: Color) -> void:
+	if layer == null or not is_instance_valid(layer):
+		return
+	var d := DamageNumber.new()
+	d.text_override = text
+	d.color = color
+	d.global_position = pos
+	layer.add_child(d)
+
+
 func death_pop(pos: Vector2, color: Color) -> void:
 	if layer == null or not is_instance_valid(layer):
 		return

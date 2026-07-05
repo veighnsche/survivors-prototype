@@ -294,12 +294,16 @@ func _spawn_chest(pos: Vector2) -> void:
 
 
 func open_chest(pos: Vector2) -> void:
+	# Instant reward — NO card screen. Chests are a windfall, not an interruption.
 	Fx.death_pop(pos, Color(0.95, 0.75, 0.25))
-	Fx.shake(0.3)
+	Fx.shake(0.35)
 	add_run_gold(Config.CHEST_GOLD)
-	pending_levelups += randi_range(Config.CHEST_LEVELS_MIN, Config.CHEST_LEVELS_MAX)
-	if not card_screen.active:
-		_open_level_up()
+	player.heal(Config.CHEST_HEAL)
+	var reward := grant_random_upgrade()
+	var label := "+%d gold" % Config.CHEST_GOLD
+	if reward != "":
+		label += "  •  " + reward
+	Fx.floating_text(pos + Vector2(0, -22), label, Color(1.0, 0.85, 0.4))
 
 
 func vacuum_all_gems() -> void:
@@ -410,16 +414,34 @@ func _def(id: String):
 	return null
 
 
-func _on_card_picked(id: String) -> void:
+func _apply_choice(id: String) -> void:
 	if id == "heal":
 		player.apply_upgrade("heal")
-	else:
-		upgrade_levels[id] = int(upgrade_levels.get(id, 0)) + 1
-		player.apply_upgrade(id)
-		var def = _def(id)
-		if def != null:
-			for lk in def.locks:
-				locked[lk] = true
+		return
+	upgrade_levels[id] = int(upgrade_levels.get(id, 0)) + 1
+	player.apply_upgrade(id)
+	var def = _def(id)
+	if def != null:
+		for lk in def.locks:
+			locked[lk] = true
+
+
+## Auto-apply one upgrade with no card screen (chest reward). Prefers non-fork
+## cards so a chest never silently commits you to a locked branch.
+func grant_random_upgrade() -> String:
+	var cards := _draw_cards(5)
+	if cards.is_empty():
+		return ""
+	for c in cards:
+		if c.get("locks", []).is_empty():
+			_apply_choice(c.id)
+			return c.name
+	_apply_choice(cards[0].id)
+	return cards[0].name
+
+
+func _on_card_picked(id: String) -> void:
+	_apply_choice(id)
 	_after_choice()
 
 
