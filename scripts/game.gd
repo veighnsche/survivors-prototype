@@ -12,6 +12,13 @@ var hud: HUD
 var card_screen: CardScreen
 var biome_map: BiomeMap
 var bg: BackgroundGrid
+var _cur_biome := ""
+
+const FAMILY_SPELLS := {
+	"blast": {2: ["Nova", "Shockwave pulse when swarmed"], 3: ["Volley", "Extra bolt + bigger Nova"]},
+	"ward":  {2: ["Thorns", "Attackers take reflected damage"], 3: ["Deflect", "Bounce ranged shots back"]},
+	"drain": {2: ["Rot", "A necrotic damage-over-time aura"], 3: ["Wither", "Curse & melt the toughest foe"]},
+}
 
 var run_started := false
 var _shot_done := false
@@ -59,6 +66,7 @@ func _ready() -> void:
 	var obstacles := ObstacleField.new()
 	obstacles.player = player
 	obstacles.world_seed = map_seed
+	obstacles.biome_map = biome_map
 	add_child(obstacles)
 
 	var loot := LootField.new()
@@ -86,6 +94,7 @@ func _ready() -> void:
 	player.projectile_parent = projectiles_root
 	player.add_to_group("player")
 	player.died.connect(_on_player_died)
+	player.awakened.connect(_on_family_awakened)
 	add_child(player)
 
 	var cam := GameCamera.new()
@@ -126,8 +135,10 @@ func _ready() -> void:
 
 	_apply_meta()
 	if Sim.enabled and Sim.family != "":
-		# grant the family under test at full Insight for build-viability runs
+		# grant the family under test fully (all tiers) for build-viability runs
 		player.add_insight(Sim.family, float(Config.INSIGHT_TIERS[Config.INSIGHT_TIERS.size() - 1]))
+		player.grant_family_tier(Sim.family, 2)
+		player.grant_family_tier(Sim.family, 3)
 	run_started = true
 
 
@@ -177,8 +188,15 @@ func _process(delta: float) -> void:
 
 	var biome := biome_map.biome_at(player.global_position)
 	bg.tint_color = Config.BIOMES[biome].color
+	if biome != _cur_biome:
+		_cur_biome = biome
+		hud.show_banner("Entering %s" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)
 	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills,
 		level, xp, xp_to_next, run_gold, Config.BIOMES[biome].name, _family_summary())
+
+
+func _on_family_awakened(fam: String) -> void:
+	hud.show_banner("%s awakened" % Config.FAMILY_NAMES[fam], Config.FAMILY_COLORS[fam])
 
 
 func _family_summary() -> String:
@@ -225,12 +243,24 @@ func _hp_scale() -> float:
 func _spawn_enemy_at_ring() -> void:
 	var pos := player.global_position + _ring_point()
 	var biome := biome_map.biome_at(pos)
-	var arch: String = Config.BIOMES[biome].archetype
 	var e := Enemy.new()
-	e.setup(arch, biome, player, _hp_scale())
+	e.setup(_pick_arch(biome), biome, player, _hp_scale())
 	e.global_position = pos
 	e.died.connect(_on_enemy_died.bind(e))
 	enemies_root.add_child(e)
+
+
+func _pick_arch(biome: String) -> String:
+	var roster: Array = Config.BIOMES[biome].roster
+	var total := 0.0
+	for r in roster:
+		total += r.w
+	var roll := randf() * total
+	for r in roster:
+		roll -= r.w
+		if roll <= 0.0:
+			return r.arch
+	return roster[0].arch
 
 
 func _spawn_boss() -> void:
@@ -279,7 +309,9 @@ func _spawn_gem(pos: Vector2, tier: String) -> void:
 	g.value = Config.GEM_VALUES[tier]
 	g.player = player
 	g.game = self
-	g.global_position = pos
+	# fling out in a random direction near the corpse, not dead-center
+	var a := randf() * TAU
+	g.global_position = pos + Vector2(cos(a), sin(a)) * randf_range(18.0, 46.0)
 	gems_root.add_child(g)
 
 
@@ -385,6 +417,13 @@ func _open_level_up() -> void:
 
 func _draw_cards(n: int) -> Array:
 	var elig: Array = []
+	# Family spell cards unlocked by essence (Insight) — the deeper tiers you pick.
+	for fam in FAMILY_SPELLS:
+		var t: int = player.next_card_tier(fam)
+		if t >= 2 and FAMILY_SPELLS[fam].has(t) and not banished.has("fam:%s:%d" % [fam, t]):
+			var meta: Array = FAMILY_SPELLS[fam][t]
+			elig.append({"id": "fam:%s:%d" % [fam, t], "name": "%s — %s" % [Config.FAMILY_NAMES[fam], meta[0]],
+				"desc": meta[1], "rarity": "rare", "locks": [], "family": fam, "tier": t})
 	for def in Upgrades.pool():
 		var id: String = def.id
 		if banished.has(id) or locked.has(id):
@@ -421,6 +460,10 @@ func _def(id: String):
 
 
 func _apply_choice(id: String) -> void:
+	if id.begins_with("fam:"):
+		var parts := id.split(":")
+		player.grant_family_tier(parts[1], int(parts[2]))
+		return
 	if id == "heal":
 		player.apply_upgrade("heal")
 		return

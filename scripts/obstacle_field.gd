@@ -6,6 +6,7 @@ extends Node2D
 
 var player: Node2D
 var world_seed := 0  # per-run seed so each run's layout differs
+var biome_map: BiomeMap  # styles obstacles by the biome they sit in
 var _active: Dictionary = {}  # Vector2i -> ObstacleBody or null (empty cell)
 var _timer := 0.0
 
@@ -59,4 +60,9 @@ func _make(c: Vector2i, cell: float):
 	var ob := ObstacleBody.new()
 	ob.size = Vector2(w, hgt)
 	ob.global_position = Vector2(c) * cell + Vector2(cell * 0.5 + ox, cell * 0.5 + oy)
+	if biome_map != null:
+		var biome := biome_map.biome_at(ob.global_position)
+		var bdef: Dictionary = Config.BIOMES[biome]
+		ob.style = bdef.obstacle
+		ob.color = Color(bdef.color).darkened(0.55)
 	return ob

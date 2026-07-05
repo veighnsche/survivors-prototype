@@ -12,6 +12,7 @@ var gold_label: Label
 var xp_bar: ProgressBar
 var death_overlay: ColorRect
 var death_label: Label
+var banner_label: Label
 
 
 func _ready() -> void:
@@ -47,6 +48,23 @@ func _ready() -> void:
 	death_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	death_label.add_theme_font_size_override("font_size", 40)
 	death_overlay.add_child(death_label)
+
+	banner_label = Label.new()
+	banner_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	banner_label.offset_top = 150.0
+	banner_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	banner_label.add_theme_font_size_override("font_size", 44)
+	banner_label.modulate.a = 0.0
+	add_child(banner_label)
+
+
+func show_banner(text: String, color: Color) -> void:
+	banner_label.text = text
+	banner_label.add_theme_color_override("font_color", color)
+	banner_label.modulate.a = 1.0
+	var tw := create_tween()
+	tw.tween_interval(1.1)
+	tw.tween_property(banner_label, "modulate:a", 0.0, 0.7)
 
 
 func set_class(display_name: String) -> void:

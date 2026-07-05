@@ -21,14 +21,19 @@ var FAMILY_NAMES := {
 	"blast": "Blast", "ward": "Ward", "drain": "Drain",
 	"control": "Control", "sight": "Sight", "summon": "Summon",
 }
-# Insight needed for tier I / II / III. The wheel fills toward the last value.
-var INSIGHT_TIERS := [10.0, 30.0, 60.0]
+# Insight needed for tier I / II / III. T1 auto-awakens; T2/T3 unlock as cards.
+# Deliberately slow — awakening a family should feel earned, not instant.
+var INSIGHT_TIERS := [16.0, 52.0, 110.0]
 
 # --- Biomes (organic noise blobs; the Commons surrounds spawn) ----------------
+# roster = the enemy archetypes that spawn here (weighted); obstacle = terrain style.
 var BIOMES := {
-	"commons":    {"name": "The Commons", "color": Color("#E2493B"), "family": "blast", "archetype": "brawler"},
-	"thornreach": {"name": "Thornreach",  "color": Color("#E0A02E"), "family": "ward",  "archetype": "skirmisher"},
-	"barrows":    {"name": "The Barrows", "color": Color("#6FB03A"), "family": "drain", "archetype": "brute"},
+	"commons":    {"name": "The Commons", "color": Color("#E2493B"), "family": "blast", "obstacle": "block",
+		"roster": [{"arch": "brawler", "w": 0.7}, {"arch": "darter", "w": 0.3}]},
+	"thornreach": {"name": "Thornreach",  "color": Color("#E0A02E"), "family": "ward",  "obstacle": "hedge",
+		"roster": [{"arch": "skirmisher", "w": 0.65}, {"arch": "bramble", "w": 0.35}]},
+	"barrows":    {"name": "The Barrows", "color": Color("#6FB03A"), "family": "drain", "obstacle": "tomb",
+		"roster": [{"arch": "brute", "w": 0.55}, {"arch": "shambler", "w": 0.45}]},
 }
 var COMMONS_RADIUS := 900.0   # spawn area is always the Commons
 var BIOME_CELL := 1600.0      # size of the Voronoi cells that make the blobs
@@ -43,18 +48,27 @@ var BIOME_RESISTS := {
 }
 
 # --- Enemy archetypes ---------------------------------------------------------
+# name shown in the codex; behavior = how it moves/attacks.
 var ARCHETYPES := {
-	"brawler":    {"hp": 4.0,   "speed": 122.0, "damage": 6.0,  "radius": 9.0,  "xp": "small"},
-	"skirmisher": {"hp": 8.0,   "speed": 92.0,  "damage": 7.0,  "radius": 10.0, "xp": "medium",
+	# Commons
+	"brawler":    {"name": "Husk",         "hp": 4.0,   "speed": 122.0, "damage": 6.0,  "radius": 9.0,  "xp": "small",  "behavior": "beeline"},
+	"darter":     {"name": "Stray",        "hp": 2.5,   "speed": 168.0, "damage": 4.0,  "radius": 7.0,  "xp": "small",  "behavior": "darter"},
+	# Thornreach
+	"skirmisher": {"name": "Slinger",      "hp": 8.0,   "speed": 92.0,  "damage": 7.0,  "radius": 10.0, "xp": "medium", "behavior": "kite",
 		"shot_range": 330.0, "shot_interval": 2.4, "shot_speed": 300.0},
-	"brute":      {"hp": 42.0,  "speed": 42.0,  "damage": 16.0, "radius": 20.0, "xp": "large"},
-	"boss":       {"hp": 700.0, "speed": 46.0,  "damage": 30.0, "radius": 40.0, "xp": "large"},
+	"bramble":    {"name": "Bramble",      "hp": 24.0,  "speed": 40.0,  "damage": 9.0,  "radius": 15.0, "xp": "medium", "behavior": "advance_shoot",
+		"shot_range": 320.0, "shot_interval": 2.8, "shot_speed": 240.0},
+	# Barrows
+	"brute":      {"name": "Barrow-Knight","hp": 44.0,  "speed": 42.0,  "damage": 16.0, "radius": 20.0, "xp": "large",  "behavior": "beeline"},
+	"shambler":   {"name": "Grave-swarm",  "hp": 6.0,   "speed": 34.0,  "damage": 8.0,  "radius": 11.0, "xp": "small",  "behavior": "beeline"},
+	# Boss
+	"boss":       {"name": "Reaper",       "hp": 700.0, "speed": 46.0,  "damage": 30.0, "radius": 40.0, "xp": "large",  "behavior": "beeline"},
 }
 var HP_RAMP_PER_MIN := 0.45   # enemy hp scales up over the run
 
 # --- Essence (biome-colored drops that feed family Insight) -------------------
-var ESSENCE_DROP_CHANCE := 0.55
-var ESSENCE_VALUE := 2.0
+var ESSENCE_DROP_CHANCE := 0.42
+var ESSENCE_VALUE := 1.4
 var ESSENCE_ATTRACT_SPEED := 600.0
 var ESSENCE_COLLECT_DIST := 16.0
 

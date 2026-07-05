@@ -6,6 +6,8 @@ extends CharacterBody2D
 signal died
 
 var archetype := "brawler"
+var behavior := "beeline"
+var stats: Dictionary = {}
 var biome := "commons"
 var hp := 5.0
 var speed := 100.0
@@ -43,7 +45,8 @@ func apply_vuln(mult: float, dur: float) -> void:
 func setup(arch: String, biome_id: String, tgt: Node2D, hp_scale: float) -> void:
 	archetype = arch
 	biome = biome_id
-	var stats: Dictionary = Config.ARCHETYPES[arch]
+	stats = Config.ARCHETYPES[arch]
+	behavior = stats.get("behavior", "beeline")
 	hp = stats.hp * hp_scale
 	speed = stats.speed
 	damage = stats.damage
@@ -54,7 +57,7 @@ func setup(arch: String, biome_id: String, tgt: Node2D, hp_scale: float) -> void
 	target = tgt
 	var bc: Color = Config.BIOMES[biome_id].color if Config.BIOMES.has(biome_id) else Color(0.9, 0.2, 0.2)
 	color = bc.darkened(0.15) if not is_boss else Color(0.92, 0.16, 0.22)
-	if arch == "skirmisher":
+	if stats.has("shot_interval"):
 		_shot_timer = randf_range(0.5, stats.shot_interval)
 		_strafe_dir = 1.0 if randf() < 0.5 else -1.0
 
@@ -111,25 +114,32 @@ func _physics_process(delta: float) -> void:
 
 func _behavior_dir(delta: float) -> Vector2:
 	var to_p := target.global_position - global_position
-	match archetype:
-		"skirmisher":
-			var stats: Dictionary = Config.ARCHETYPES.skirmisher
+	match behavior:
+		"kite":  # skirmisher: shoot and keep distance
 			var d := to_p.length()
 			_shot_timer -= delta
 			if _shot_timer <= 0.0 and d <= stats.shot_range * 1.1:
 				_shot_timer = stats.shot_interval
-				_fire_shot(to_p.normalized(), stats)
+				_fire_shot(to_p.normalized())
 			if d > stats.shot_range * 0.85:
 				return to_p.normalized()
 			elif d < stats.shot_range * 0.45:
 				return -to_p.normalized()
 			else:
 				return to_p.normalized().rotated(PI / 2.0) * _strafe_dir
+		"advance_shoot":  # bramble: shoot while lumbering forward
+			_shot_timer -= delta
+			if _shot_timer <= 0.0 and to_p.length() <= stats.shot_range:
+				_shot_timer = stats.shot_interval
+				_fire_shot(to_p.normalized())
+			return to_p.normalized()
+		"darter":  # stray: fast, weaving beeline
+			return to_p.normalized().rotated(sin(Time.get_ticks_msec() * 0.006 + float(get_instance_id() % 100)) * 0.4)
 		_:
-			return to_p.normalized()  # brawler / brute / boss: beeline
+			return to_p.normalized()  # brawler / brute / shambler / boss
 
 
-func _fire_shot(dir: Vector2, stats: Dictionary) -> void:
+func _fire_shot(dir: Vector2) -> void:
 	var s := EnemyShot.new()
 	s.damage = stats.damage
 	s.speed = stats.shot_speed
