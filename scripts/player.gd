@@ -21,6 +21,7 @@ var cast_cd := 0.0
 var atk_cds: Dictionary = {}
 var bolt_count := 1
 var current_biome := "commons"  # set each frame by the run director
+var brain_report: Array = []    # live table of the selector's last decision
 
 # Global modifiers
 var damage_mult := 1.0
@@ -288,9 +289,25 @@ func _available_basics() -> Array:
 	return out
 
 
+## Damage/cooldown scale with the family's insight tier: deeper = harder-hitting
+## but slower, so cheap low-tier attacks stay competitive in the selector.
+func _basic_dmg(key: String, atk: Dictionary) -> float:
+	if key == "force":
+		return atk.damage * cantrip_mult
+	var tier := maxi(insight_tier(key), 1)
+	return atk.damage * fam_power.get(key, 1.0) * (1.0 + Config.TIER_DMG_BONUS * (tier - 1))
+
+
+func _basic_cd(key: String, atk: Dictionary) -> float:
+	if key == "force":
+		return atk.cooldown
+	var tier := maxi(insight_tier(key), 1)
+	return atk.cooldown * (1.0 + Config.TIER_CD_PENALTY * (tier - 1))
+
+
 ## Utility scoring: damage + survival relief + healing need + home-turf lean.
 func _score_attack(key: String, atk: Dictionary) -> Dictionary:
-	var dmg_base: float = atk.damage * (cantrip_mult if key == "force" else fam_power.get(key, 1.0))
+	var dmg_base := _basic_dmg(key, atk)
 	var score := 0.0
 	var target = null
 	match atk.kind:
@@ -363,27 +380,36 @@ func _cast_brain(delta: float) -> void:
 	if cast_cd > 0.0:
 		return
 
+	# Score EVERY awakened attack (for the live table), pick among the ready.
+	var report: Array = []
 	var best := ""
 	var best_score := 0.0
 	var best_target = null
 	for key in _available_basics():
-		if float(atk_cds.get(key, 0.0)) > 0.0:
-			continue
 		var atk: Dictionary = Config.BASIC_ATTACKS[key]
 		var res := _score_attack(key, atk)
+		var cd_left := float(atk_cds.get(key, 0.0))
+		var entry := {"name": atk.name, "score": float(res.score), "cd": maxf(cd_left, 0.0),
+			"home": Config.BIOMES[current_biome].family == key, "picked": false,
+			"no_target": float(res.score) <= 0.0}
+		report.append(entry)
+		if cd_left > 0.0 or float(res.score) <= 0.0:
+			continue
 		if float(res.score) > best_score:
 			best_score = res.score
 			best = key
 			best_target = res.get("target")
 
-	if best == "":
-		return  # nothing worth casting; retry next frame
-
-	var chosen: Dictionary = Config.BASIC_ATTACKS[best]
-	_cast_basic(best, chosen, best_target)
-	RunLog.bump("basic_casts", chosen.name)
-	atk_cds[best] = chosen.cooldown * attack_speed_mult * boost_rate
-	cast_cd = Config.CAST_CYCLE * attack_speed_mult * boost_rate
+	if best != "":
+		var chosen: Dictionary = Config.BASIC_ATTACKS[best]
+		for entry in report:
+			if entry.name == chosen.name:
+				entry.picked = true
+		_cast_basic(best, chosen, best_target)
+		RunLog.bump("basic_casts", chosen.name)
+		atk_cds[best] = _basic_cd(best, chosen) * attack_speed_mult * boost_rate
+		cast_cd = Config.CAST_CYCLE * attack_speed_mult * boost_rate
+	brain_report = report
 
 
 func _chain_targets(from_enemy, jumps: int, jump_range: float) -> Array:
@@ -410,7 +436,7 @@ func _chain_targets(from_enemy, jumps: int, jump_range: float) -> Array:
 
 func _cast_basic(key: String, atk: Dictionary, target) -> void:
 	var fam := "" if key == "force" else key
-	var dmg_base: float = atk.damage * (cantrip_mult if key == "force" else fam_power.get(key, 1.0))
+	var dmg_base := _basic_dmg(key, atk)
 	match atk.kind:
 		"bolt":
 			var base_dir: Vector2 = (target.global_position - global_position).normalized()
@@ -660,7 +686,7 @@ func _handle_contact(delta: float) -> void:
 	for id in _overlapping:
 		var e = _overlapping[id]
 		if is_instance_valid(e):
-			dmg = max(dmg, e.damage)
+			dmg = max(dmg, e.eff_damage())
 	if dmg > 0.0:
 		take_damage(dmg)
 		if thorns_damage > 0.0:

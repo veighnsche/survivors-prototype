@@ -66,7 +66,14 @@ var BIOME_WEIGHTS := {"commons": 0.20, "thornreach": 0.16, "barrows": 0.16, "wil
 # Territory: enemies weaken and head home when outside their biome (no dragging
 # them out to farm weak versions — they disengage instead).
 var OUT_OF_BIOME_VULN := 1.6      # damage taken multiplier while outside home biome
+var OUT_OF_BIOME_DMG := 0.7       # they also hit softer away from home
+var OUT_OF_BIOME_REWARD := 0.4    # and reward less (gem XP/insight scaled, no gold)
+var OUT_OF_BIOME_DESPAWN := 10.0  # seconds outside before a strayed enemy fades away
 var SELF_DEFENSE_RADIUS := 240.0  # but they still fight back if you're this close
+
+# Basic attacks grow with the family's insight tier — stronger, but slower:
+var TIER_DMG_BONUS := 0.30   # +30% damage per tier beyond I
+var TIER_CD_PENALTY := 0.20  # +20% cooldown per tier beyond I (cheap attacks stay competitive)
 
 # Damage-type multipliers per biome (the adaptation teeth):
 # each biome resists something and is weak to its counter-family's type.

@@ -22,6 +22,7 @@ var target: Node2D
 var biome_map: BiomeMap  # for territory checks
 var home_pos := Vector2.ZERO  # where it spawned (inside its home biome)
 var _outside := false     # currently outside its home biome → weakened, heads home
+var _outside_t := 0.0     # how long it has been astray (fades away eventually)
 var _territory_timer := 0.0
 var _dead := false
 var _dmg_accum := 0.0
@@ -49,6 +50,11 @@ func apply_vuln(mult: float, dur: float) -> void:
 
 func apply_fear(dur: float) -> void:
 	feared_t = max(feared_t, dur)
+
+
+## Contact/shot damage right now — softer when fighting away from home turf.
+func eff_damage() -> float:
+	return damage * (Config.OUT_OF_BIOME_DMG if _outside else 1.0)
 
 
 func setup(arch: String, biome_id: String, tgt: Node2D, hp_scale: float) -> void:
@@ -123,6 +129,13 @@ func _physics_process(delta: float) -> void:
 		if _territory_timer <= 0.0:
 			_territory_timer = 0.4
 			_outside = biome_map.biome_at(global_position) != biome
+		if _outside:
+			_outside_t += delta
+			if _outside_t >= Config.OUT_OF_BIOME_DESPAWN:
+				queue_free()  # faded away — no death, no reward
+				return
+		else:
+			_outside_t = 0.0
 
 	if feared_t > 0.0:
 		feared_t -= delta
@@ -169,7 +182,7 @@ func _behavior_dir(delta: float) -> Vector2:
 
 func _fire_shot(dir: Vector2) -> void:
 	var s := EnemyShot.new()
-	s.damage = stats.damage
+	s.damage = eff_damage()
 	s.speed = stats.shot_speed
 	s.direction = dir
 	s.global_position = global_position + dir * (radius + 6.0)

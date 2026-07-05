@@ -153,6 +153,10 @@ func _ready() -> void:
 	wheel.player = player
 	hud.add_child(wheel)
 
+	var attack_panel := AttackPanel.new()
+	attack_panel.player = player
+	hud.add_child(attack_panel)
+
 	card_screen = CardScreen.new()
 	card_screen.game = self
 	card_screen.picked.connect(_on_card_picked)
@@ -375,17 +379,21 @@ func _on_enemy_died(e) -> void:
 			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
 			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
 	else:
-		_spawn_gem(e.global_position, e.xp_tier, fam)
-		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
-		if gd != null and randf() < float(gd.chance):
-			_spawn_gold(e.global_position, int(gd.amount))
+		if e._outside:
+			# strays reward less: reduced gem, no gold
+			_spawn_gem(e.global_position, e.xp_tier, fam, Config.OUT_OF_BIOME_REWARD)
+		else:
+			_spawn_gem(e.global_position, e.xp_tier, fam)
+			var gd = Config.GOLD_DROP.get(e.xp_tier, null)
+			if gd != null and randf() < float(gd.chance):
+				_spawn_gold(e.global_position, int(gd.amount))
 
 
 # --- Drops ----------------------------------------------------------------------
-func _spawn_gem(pos: Vector2, tier: String, family: String) -> void:
+func _spawn_gem(pos: Vector2, tier: String, family: String, reward_mult: float = 1.0) -> void:
 	var g := Gem.new()
-	g.value = Config.GEM_VALUES[tier]
-	g.insight_value = Config.GEM_INSIGHT[tier]
+	g.value = maxi(1, int(round(Config.GEM_VALUES[tier] * reward_mult)))
+	g.insight_value = Config.GEM_INSIGHT[tier] * reward_mult
 	g.family = family
 	g.player = player
 	g.game = self
