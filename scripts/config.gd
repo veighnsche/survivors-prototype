@@ -58,9 +58,9 @@ var BIOMES := {
 	"hollow":     {"name": "The Hollow",  "color": Color("#9A54E4"), "family": "summon",  "obstacle": "block",
 		"roster": [{"arch": "mite", "w": 0.8}, {"arch": "broodmother", "w": 0.2}]},
 }
-var COMMONS_RADIUS := 450.0      # small guaranteed-Commons ring at spawn
-var SPAWN_FAIR_RADIUS := 2600.0  # fair pinwheel: all 3 biomes touch spawn as seed-rotated sectors
-var BIOME_CELL := 9000.0         # HUGE blobs — a biome is a whole territory, not a patch
+var COMMONS_RADIUS := 1600.0     # the starting Commons field — a real area, not a dot
+var SPAWN_FAIR_RADIUS := 14000.0 # sector wedges run from the Commons edge WAY out — each one a territory
+var BIOME_CELL := 9000.0         # HUGE Voronoi blobs beyond the wedges
 var BIOME_WEIGHTS := {"commons": 0.20, "thornreach": 0.16, "barrows": 0.16, "wilds": 0.16, "cragspire": 0.16, "hollow": 0.16}
 
 # Territory: enemies weaken and head home when outside their biome (no dragging
