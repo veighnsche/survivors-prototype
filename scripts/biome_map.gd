@@ -1,24 +1,43 @@
 class_name BiomeMap
 extends RefCounted
-## The world's biome layout: organic Voronoi-style blobs, deterministic per run
-## seed. The Commons always surrounds spawn so tabula rasa starts survivable.
+## The world's biome layout. Near spawn: a guaranteed-fair pinwheel — all three
+## biomes touch the spawn area as sectors in seed-random directions, so which
+## biome you meet first is YOUR choice of direction, never luck. Beyond that:
+## huge organic Voronoi blobs.
 
 var world_seed := 0
+var _sector_order: Array = []
+var _sector_offset := 0.0
 
 
 func _init(seed_value: int) -> void:
 	world_seed = seed_value
+	_sector_order = ["commons", "thornreach", "barrows"]
+	# deterministic seed-based shuffle + rotation of the spawn sectors
+	var h := hash(Vector3i(seed_value, 17, -9))
+	if posmod(h, 2) == 1:
+		_sector_order.reverse()
+	var swap := posmod(h >> 3, 3)
+	var tmp = _sector_order[0]
+	_sector_order[0] = _sector_order[swap]
+	_sector_order[swap] = tmp
+	_sector_offset = float(posmod(h >> 8, 1000)) / 1000.0 * TAU
 
 
 ## Which biome is at this world position?
 func biome_at(pos: Vector2) -> String:
-	if pos.length() < Config.COMMONS_RADIUS:
+	var dist := pos.length()
+	if dist < Config.COMMONS_RADIUS:
 		return "commons"
+	if dist < Config.SPAWN_FAIR_RADIUS:
+		# fair pinwheel: three 120° sectors, one per biome
+		var ang := fposmod(pos.angle() + _sector_offset, TAU)
+		return _sector_order[int(ang / (TAU / 3.0)) % 3]
+
 	var cell: float = Config.BIOME_CELL
 	var pc := Vector2i(int(floor(pos.x / cell)), int(floor(pos.y / cell)))
 	var best_d := INF
 	var best := "commons"
-	# Nearest jittered cell-center over the 3x3 neighborhood → organic borders.
 	for dx in range(-1, 2):
 		for dy in range(-1, 2):
 			var c := pc + Vector2i(dx, dy)
@@ -34,8 +53,8 @@ func biome_at(pos: Vector2) -> String:
 
 
 func _pick_biome(c: Vector2i) -> String:
-	# Independent full-range hash for the biome roll. (Reusing high bits of the
-	# jitter hash capped the roll at ~0.41 and made some biomes IMPOSSIBLE.)
+	# Independent full-range hash (reusing jitter bits once capped the roll and
+	# made Barrows literally impossible — see git history).
 	var h := hash(Vector3i(world_seed ^ 0x51ED270, c.x, c.y))
 	var total := 0.0
 	for k in Config.BIOME_WEIGHTS:

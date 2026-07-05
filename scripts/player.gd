@@ -237,7 +237,7 @@ func deal(e, base: float, dtype: String, fam: String) -> void:
 		hp = min(max_hp, hp + applied * siphon_pct)
 		RunLog.bump("healing", "siphon", applied * siphon_pct)
 	if fam != "" and applied > 0.0:
-		add_insight(fam, 0.015)
+		add_insight(fam, 0.008)
 
 
 func _eff(e, dtype: String) -> float:
@@ -406,7 +406,7 @@ func take_damage(amount: float) -> void:
 		shield_hp -= absorbed
 		remaining -= absorbed
 		RunLog.bump("damage_taken", "shield", absorbed)
-		add_insight("ward", 0.04)
+		add_insight("ward", 0.02)
 		queue_redraw()
 		if remaining <= 0.0:
 			return

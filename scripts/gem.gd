@@ -1,11 +1,16 @@
 class_name Gem
 extends Node2D
-## An XP drop. Sits on the floor accruing idle_time (used for merging), flies to
-## the player once inside pickup radius, grants XP on contact.
+## THE drop: a biome-colored gem carrying both XP and family Insight — kill a
+## creature, absorb a shard of what it was. Sits on the floor accruing idle_time
+## (merging), flies to the player in pickup radius.
 
-var value := 1
+const ATTRACT_SPEED := 580.0
+
+var value := 1            # XP
+var insight_value := 0.0  # family Insight
+var family := ""          # which family this feeds (from the creature's biome)
 var player: Node2D
-var game  # the run director, for add_xp()
+var game
 
 var idle_time := 0.0
 var attracting := false
@@ -33,9 +38,10 @@ func _process(delta: float) -> void:
 	idle_time += delta
 
 
-## Merge another gem into this one (called by the run director's merge pass).
+## Merge another gem into this one (both XP and insight combine).
 func absorb(other: Gem) -> void:
 	value += other.value
+	insight_value += other.insight_value
 	other.collected = true
 	other.queue_free()
 	idle_time = 0.0
@@ -48,6 +54,8 @@ func _collect() -> void:
 	collected = true
 	if game != null:
 		game.add_xp(value)
+		if family != "" and insight_value > 0.0:
+			game.add_insight(family, insight_value)
 	queue_free()
 
 
@@ -60,10 +68,8 @@ func _tier() -> int:
 
 
 func _draw() -> void:
-	var t := _tier()
-	# small=cyan, medium=green, large=purple (kept off gold so it doesn't read as coins)
-	var colors := [Color(0.3, 0.85, 0.95), Color(0.45, 0.9, 0.4), Color(0.72, 0.42, 1.0)]
+	var c: Color = Config.FAMILY_COLORS.get(family, Color(0.3, 0.85, 0.95))
 	var radii := [5.0, 7.0, 10.0]
-	var r: float = radii[t] + min(6.0, value * 0.05)
-	draw_circle(Vector2.ZERO, r, colors[t])
-	draw_arc(Vector2.ZERO, r, 0.0, TAU, 16, Color(1, 1, 1, 0.6), 1.5)
+	var r: float = radii[_tier()] + min(6.0, value * 0.05)
+	draw_circle(Vector2.ZERO, r, c)
+	draw_arc(Vector2.ZERO, r, 0.0, TAU, 16, Color(1, 1, 1, 0.7), 1.5)

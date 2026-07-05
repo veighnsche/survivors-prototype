@@ -13,6 +13,9 @@ var card_screen: CardScreen
 var biome_map: BiomeMap
 var bg: BackgroundGrid
 var _cur_biome := ""
+var boss_lock_biome := ""       # while the boss lives, the player is sealed in this biome
+var _last_inside_pos := Vector2.ZERO
+var _seal_warn_cd := 0.0
 
 const FAMILY_SPELLS := {
 	"blast": {2: ["Nova", "Shockwave pulse when swarmed"], 3: ["Volley", "Extra bolt + bigger Nova"]},
@@ -188,6 +191,17 @@ func _process(delta: float) -> void:
 		gem_merge_timer = 0.25
 		_merge_gems()
 
+	# Boss seal: while the boss lives you cannot leave its biome.
+	if boss_lock_biome != "":
+		_seal_warn_cd -= delta
+		if biome_map.biome_at(player.global_position) != boss_lock_biome:
+			player.global_position = _last_inside_pos
+			if _seal_warn_cd <= 0.0:
+				_seal_warn_cd = 1.0
+				Fx.floating_text(player.global_position + Vector2(0, -34), "sealed in!", Color(0.92, 0.16, 0.22))
+		else:
+			_last_inside_pos = player.global_position
+
 	var biome := biome_map.biome_at(player.global_position)
 	if biome != _cur_biome:
 		_cur_biome = biome
@@ -274,12 +288,22 @@ func _pick_arch(biome: String) -> String:
 
 
 func _spawn_boss() -> void:
+	# The boss claims the biome the player is in and SEALS its borders.
+	var biome := biome_map.biome_at(player.global_position)
 	var pos := player.global_position + _ring_point()
+	for i in 12:  # try to spawn it inside the sealed biome
+		if biome_map.biome_at(pos) == biome:
+			break
+		pos = player.global_position + _ring_point()
 	var e := Enemy.new()
-	e.setup("boss", biome_map.biome_at(pos), player, 1.0)
+	e.setup("boss", biome, player, 1.0)
 	e.global_position = pos
 	e.died.connect(_on_enemy_died.bind(e))
 	enemies_root.add_child(e)
+	boss_lock_biome = biome
+	_last_inside_pos = player.global_position
+	hud.show_banner("The Reaper seals %s" % Config.BIOMES[biome].name, Color(0.92, 0.16, 0.22))
+	RunLog.event("boss sealed %s" % Config.BIOMES[biome].name)
 
 
 func _ring_point() -> Vector2:
@@ -302,28 +326,33 @@ func _on_enemy_died(e) -> void:
 	RunLog.bump("kills_by_enemy", Config.ARCHETYPES[e.archetype].name)
 	if e._outside:
 		RunLog.bump("kills_special", "out_of_biome")
+	var fam: String = Config.BIOMES[e.biome].family
 	if e.is_boss:
 		RunLog.event("BOSS killed (lvl %d, hp %.0f)" % [level, player.hp])
 		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
+		if boss_lock_biome != "":
+			boss_lock_biome = ""
+			hud.show_banner("The seal breaks", Color(0.95, 0.9, 0.7))
+			RunLog.event("boss seal broken")
 		for i in 5:
 			var off := Vector2(randf_range(-40.0, 40.0), randf_range(-40.0, 40.0))
-			_spawn_gem(e.global_position + off, "large")
+			_spawn_gem(e.global_position + off, "large", fam)
 		for i in 6:
 			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
 			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
 	else:
-		_spawn_gem(e.global_position, e.xp_tier)
+		_spawn_gem(e.global_position, e.xp_tier, fam)
 		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
 		if gd != null and randf() < float(gd.chance):
 			_spawn_gold(e.global_position, int(gd.amount))
-		if randf() < Config.ESSENCE_DROP_CHANCE:
-			_spawn_essence(e.global_position, Config.BIOMES[e.biome].family)
 
 
 # --- Drops ----------------------------------------------------------------------
-func _spawn_gem(pos: Vector2, tier: String) -> void:
+func _spawn_gem(pos: Vector2, tier: String, family: String) -> void:
 	var g := Gem.new()
 	g.value = Config.GEM_VALUES[tier]
+	g.insight_value = Config.GEM_INSIGHT[tier]
+	g.family = family
 	g.player = player
 	g.game = self
 	# fling out in a random direction near the corpse, not dead-center
@@ -341,18 +370,8 @@ func _spawn_gold(pos: Vector2, amount: int) -> void:
 	pickups_root.add_child(g)
 
 
-func _spawn_essence(pos: Vector2, family: String) -> void:
-	var es := Essence.new()
-	es.family = family
-	es.value = Config.ESSENCE_VALUE
-	es.player = player
-	es.game = self
-	es.global_position = pos + Vector2(randf_range(-8, 8), randf_range(-8, 8))
-	pickups_root.add_child(es)
-
-
 func add_insight(family: String, amount: float) -> void:
-	RunLog.bump("essence_collected", family, amount)
+	RunLog.bump("insight_from_gems", family, amount)
 	player.add_insight(family, amount)
 
 
@@ -361,9 +380,13 @@ func add_run_gold(n: int) -> void:
 
 
 func vacuum_all_gems() -> void:
+	# the Magnet pickup pulls EVERYTHING collectible, not just gems
 	for g in gems_root.get_children():
 		if g is Gem:
 			g.attracting = true
+	for p in pickups_root.get_children():
+		if p is Gold:
+			p.attracting = true
 
 
 func bomb() -> void:
@@ -431,19 +454,33 @@ func _open_level_up() -> void:
 		return
 	pending_levelups -= 1
 	var cards := _draw_cards(3)
+	_log_offer(cards)
 	get_tree().paused = true
 	card_screen.show_cards(cards)
 
 
+func _log_offer(cards: Array) -> void:
+	var names: Array = []
+	for c in cards:
+		names.append(c.id)
+	RunLog.event("cards offered: %s" % " | ".join(names))
+
+
 func _draw_cards(n: int) -> Array:
-	var elig: Array = []
-	# Family spell cards unlocked by essence (Insight) — the deeper tiers you pick.
+	# Family spell cards (unlocked by insight) are GUARANTEED offers — they're
+	# the point of the game, never lottery tickets. Up to n-1 so a Vital option
+	# always remains.
+	var chosen: Array = []
 	for fam in FAMILY_SPELLS:
 		var t: int = player.next_card_tier(fam)
 		if t >= 2 and FAMILY_SPELLS[fam].has(t) and not banished.has("fam:%s:%d" % [fam, t]):
 			var meta: Array = FAMILY_SPELLS[fam][t]
-			elig.append({"id": "fam:%s:%d" % [fam, t], "name": "%s — %s" % [Config.FAMILY_NAMES[fam], meta[0]],
+			chosen.append({"id": "fam:%s:%d" % [fam, t], "name": "%s — %s" % [Config.FAMILY_NAMES[fam], meta[0]],
 				"desc": meta[1], "rarity": "rare", "locks": [], "family": fam, "tier": t})
+			if chosen.size() >= n - 1:
+				break
+
+	var elig: Array = []
 	for def in Upgrades.pool():
 		var id: String = def.id
 		if banished.has(id) or locked.has(id):
@@ -452,7 +489,6 @@ func _draw_cards(n: int) -> Array:
 			continue
 		elig.append(def)
 
-	var chosen: Array = []
 	while chosen.size() < n and elig.size() > 0:
 		var total := 0.0
 		for d in elig:
@@ -498,15 +534,14 @@ func _apply_choice(id: String) -> void:
 
 
 func grant_random_upgrade() -> String:
+	# Chests auto-grant a VITAL upgrade only — family tiers are always the
+	# player's own choice at the card screen.
 	var cards := _draw_cards(5)
-	if cards.is_empty():
-		return ""
 	for c in cards:
-		if c.get("locks", []).is_empty():
+		if not String(c.id).begins_with("fam:") and c.get("locks", []).is_empty():
 			_apply_choice(c.id)
 			return c.name
-	_apply_choice(cards[0].id)
-	return cards[0].name
+	return ""
 
 
 func _on_card_picked(id: String) -> void:
@@ -519,14 +554,20 @@ func _on_card_banished(id: String) -> void:
 		return
 	banish_charges -= 1
 	banished[id] = true
-	card_screen.show_cards(_draw_cards(3))
+	RunLog.event("card banished: %s" % id)
+	var cards := _draw_cards(3)
+	_log_offer(cards)
+	card_screen.show_cards(cards)
 
 
 func _on_card_rerolled() -> void:
 	if reroll_charges <= 0:
 		return
 	reroll_charges -= 1
-	card_screen.show_cards(_draw_cards(3))
+	RunLog.event("reroll")
+	var cards := _draw_cards(3)
+	_log_offer(cards)
+	card_screen.show_cards(cards)
 
 
 func _after_choice() -> void:

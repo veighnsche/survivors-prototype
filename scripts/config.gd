@@ -23,7 +23,7 @@ var FAMILY_NAMES := {
 }
 # Insight needed for tier I / II / III. T1 auto-awakens; T2/T3 unlock as cards.
 # Deliberately slow — awakening a family should feel earned, not instant.
-var INSIGHT_TIERS := [16.0, 52.0, 110.0]
+var INSIGHT_TIERS := [14.0, 45.0, 100.0]
 
 # --- Biomes (organic noise blobs; the Commons surrounds spawn) ----------------
 # roster = the enemy archetypes that spawn here (weighted); obstacle = terrain style.
@@ -35,8 +35,9 @@ var BIOMES := {
 	"barrows":    {"name": "The Barrows", "color": Color("#6FB03A"), "family": "drain", "obstacle": "tomb",
 		"roster": [{"arch": "brute", "w": 0.55}, {"arch": "shambler", "w": 0.45}]},
 }
-var COMMONS_RADIUS := 450.0   # small guaranteed-Commons ring at spawn; blobs vary right beyond it
-var BIOME_CELL := 4200.0      # HUGE blobs — several screens across; easy to enter, hard to leave
+var COMMONS_RADIUS := 450.0      # small guaranteed-Commons ring at spawn
+var SPAWN_FAIR_RADIUS := 2600.0  # fair pinwheel: all 3 biomes touch spawn as seed-rotated sectors
+var BIOME_CELL := 4200.0         # HUGE blobs beyond — several screens across; easy to enter, hard to leave
 var BIOME_WEIGHTS := {"commons": 0.34, "thornreach": 0.33, "barrows": 0.33}
 
 # Territory: enemies weaken and head home when outside their biome (no dragging
@@ -71,11 +72,8 @@ var ARCHETYPES := {
 }
 var HP_RAMP_PER_MIN := 0.30   # enemy hp scales up over the run
 
-# --- Essence (biome-colored drops that feed family Insight) -------------------
-var ESSENCE_DROP_CHANCE := 0.42
-var ESSENCE_VALUE := 1.4
-var ESSENCE_ATTRACT_SPEED := 600.0
-var ESSENCE_COLLECT_DIST := 16.0
+# --- Insight carried by gems (one drop: the biome-colored gem = XP + insight) --
+var GEM_INSIGHT := {"small": 0.35, "medium": 1.0, "large": 3.0}
 
 # --- Player misc --------------------------------------------------------------
 var PICKUP_RADIUS := 72.0
