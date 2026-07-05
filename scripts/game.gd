@@ -1,7 +1,6 @@
 extends Node2D
-## The run director. Class-select gate at start, then owns the world, the enemy
-## spawn timeline, XP gems + merging, level/XP progression, and the card flow.
-## All tuning numbers come from the Config autoload.
+## The run director. Tabula-rasa start, biome map drives enemy spawns + essence,
+## Insight unlocks family tiers, XP gems drive Vital character levels.
 
 var player: Player
 var enemies_root: Node2D
@@ -11,6 +10,8 @@ var pickups_root: Node2D
 var fx_root: Node2D
 var hud: HUD
 var card_screen: CardScreen
+var biome_map: BiomeMap
+var bg: BackgroundGrid
 
 var run_started := false
 var _shot_done := false
@@ -22,23 +23,22 @@ var gem_merge_timer := 0.0
 var boss_spawned := false
 var game_over := false
 
-# Progression
+# Progression (Vital / character level)
 var level := 1
 var xp := 0.0
 var xp_to_next := 0.0
 var pending_levelups := 0
 
-# Gold / meta-progression
-var run_gold := 0
-var growth_mult := 1.0
-var greed_mult := 1.0
-
-# Upgrade run-state
 var upgrade_levels: Dictionary = {}
 var locked: Dictionary = {}
 var banished: Dictionary = {}
 var reroll_charges := 0
 var banish_charges := 0
+
+# Gold / meta
+var run_gold := 0
+var growth_mult := 1.0
+var greed_mult := 1.0
 
 
 func _ready() -> void:
@@ -47,13 +47,14 @@ func _ready() -> void:
 	reroll_charges = Config.REROLL_CHARGES
 	banish_charges = Config.BANISH_CHARGES
 
+	var map_seed := randi()
+	biome_map = BiomeMap.new(map_seed)
+
 	player = Player.new()
 
-	var bg := BackgroundGrid.new()
+	bg = BackgroundGrid.new()
 	bg.target = player
 	add_child(bg)
-
-	var map_seed := randi()  # per-run seed: every run gets a different layout
 
 	var obstacles := ObstacleField.new()
 	obstacles.player = player
@@ -83,7 +84,6 @@ func _ready() -> void:
 	add_child(projectiles_root)
 
 	player.projectile_parent = projectiles_root
-	player.arena = self
 	player.add_to_group("player")
 	player.died.connect(_on_player_died)
 	add_child(player)
@@ -113,9 +113,9 @@ func _ready() -> void:
 	boost_timers.player = player
 	hud.add_child(boost_timers)
 
-	var radar := WeaponRadar.new()
-	radar.game = self
-	hud.add_child(radar)
+	var wheel := AffinityWheel.new()
+	wheel.player = player
+	hud.add_child(wheel)
 
 	card_screen = CardScreen.new()
 	card_screen.game = self
@@ -124,19 +124,16 @@ func _ready() -> void:
 	card_screen.rerolled.connect(_on_card_rerolled)
 	add_child(card_screen)
 
-	# Start immediately with fists — weapons are found in the run, not picked.
 	_apply_meta()
+	if Sim.enabled and Sim.family != "":
+		# grant the family under test at full Insight for build-viability runs
+		player.add_insight(Sim.family, float(Config.INSIGHT_TIERS[Config.INSIGHT_TIERS.size() - 1]))
 	run_started = true
 
-	if Sim.enabled:
-		player.set_weapon(Sim.weapon)  # force the weapon under test
-		Engine.time_scale = 6.0        # fast-forward wall-clock (physics stays fixed-step)
 
-
-## Apply permanent PowerUps (bought with gold) at run start.
 func _apply_meta() -> void:
 	if Sim.enabled:
-		return  # sim measures BASE weapons, no meta noise
+		return
 	player.damage_mult *= (1.0 + 0.05 * Save.powerup_level("might"))
 	player.max_hp += 12.0 * Save.powerup_level("health")
 	player.hp = player.max_hp
@@ -145,7 +142,7 @@ func _apply_meta() -> void:
 	player.attack_speed_mult *= pow(0.96, Save.powerup_level("cooldown"))
 	player.armor += float(Save.powerup_level("armor"))
 	player.recovery += 0.2 * Save.powerup_level("recovery")
-	player.weapon_stats.ranged.count += Save.powerup_level("amount")
+	player.bolt_count += Save.powerup_level("amount")
 	growth_mult = 1.0 + 0.08 * Save.powerup_level("growth")
 	greed_mult = 1.0 + 0.10 * Save.powerup_level("greed")
 
@@ -178,22 +175,32 @@ func _process(delta: float) -> void:
 		gem_merge_timer = 0.25
 		_merge_gems()
 
-	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills, level, xp, xp_to_next, run_gold, player.weapon_name())
+	var biome := biome_map.biome_at(player.global_position)
+	bg.tint_color = Config.BIOMES[biome].color
+	hud.update_hud(elapsed, player.hp, player.max_hp, enemies_root.get_child_count(), kills,
+		level, xp, xp_to_next, run_gold, Config.BIOMES[biome].name, _family_summary())
 
 
-# --- Spawn timeline ---------------------------------------------------------
+func _family_summary() -> String:
+	var parts: Array = []
+	for fam in ["blast", "ward", "drain"]:
+		var t: int = player.family_tier(fam)
+		if t > 0:
+			parts.append("%s %s" % [Config.FAMILY_NAMES[fam], ["I", "II", "III"][mini(t, 3) - 1]])
+	return " · ".join(parts) if not parts.is_empty() else "Unwritten"
+
+
+# --- Spawn timeline (intensity over time; type comes from the biome) -----------
 func _current_wave() -> Dictionary:
 	var t := elapsed
 	if t < 20.0:
-		return {"interval": 1.0,  "batch": 1, "weights": {"swarmer": 1.0}}
+		return {"interval": 1.1, "batch": 1}
 	elif t < 60.0:
-		return {"interval": 0.7,  "batch": 1, "weights": {"swarmer": 0.75, "grunt": 0.25}}
+		return {"interval": 0.8, "batch": 1}
 	elif t < 120.0:
-		return {"interval": 0.5,  "batch": 2, "weights": {"swarmer": 0.7,  "grunt": 0.3}}
-	elif t < Config.BOSS_TIME:
-		return {"interval": 0.45, "batch": 2, "weights": {"swarmer": 0.6,  "grunt": 0.3, "tank": 0.1}}
+		return {"interval": 0.55, "batch": 2}
 	else:
-		return {"interval": 0.5,  "batch": 2, "weights": {"swarmer": 0.55, "grunt": 0.3, "tank": 0.15}}
+		return {"interval": 0.5, "batch": 2}
 
 
 func _update_spawns(delta: float) -> void:
@@ -204,31 +211,33 @@ func _update_spawns(delta: float) -> void:
 		for i in wave.batch:
 			if enemies_root.get_child_count() >= Config.MAX_ENEMIES:
 				break
-			_spawn_enemy(_pick_type(wave.weights))
+			_spawn_enemy_at_ring()
 
 	if not boss_spawned and elapsed >= Config.BOSS_TIME:
 		boss_spawned = true
-		_spawn_enemy("boss")
+		_spawn_boss()
 
 
-func _pick_type(weights: Dictionary) -> String:
-	var total := 0.0
-	for k in weights:
-		total += weights[k]
-	var roll := randf() * total
-	for k in weights:
-		roll -= weights[k]
-		if roll <= 0.0:
-			return k
-	return weights.keys()[0]
+func _hp_scale() -> float:
+	return 1.0 + (elapsed / 60.0) * Config.HP_RAMP_PER_MIN
 
 
-func _spawn_enemy(type: String) -> void:
+func _spawn_enemy_at_ring() -> void:
+	var pos := player.global_position + _ring_point()
+	var biome := biome_map.biome_at(pos)
+	var arch: String = Config.BIOMES[biome].archetype
 	var e := Enemy.new()
-	e.setup(Config.ENEMY_TYPES[type], player)
-	e.is_boss = (type == "boss")
-	e.xp_tier = Config.DROP_TIER[type]
-	e.global_position = player.global_position + _ring_point()
+	e.setup(arch, biome, player, _hp_scale())
+	e.global_position = pos
+	e.died.connect(_on_enemy_died.bind(e))
+	enemies_root.add_child(e)
+
+
+func _spawn_boss() -> void:
+	var pos := player.global_position + _ring_point()
+	var e := Enemy.new()
+	e.setup("boss", biome_map.biome_at(pos), player, 1.0)
+	e.global_position = pos
 	e.died.connect(_on_enemy_died.bind(e))
 	enemies_root.add_child(e)
 
@@ -247,7 +256,6 @@ func _recycle_far_enemies() -> void:
 
 func _on_enemy_died(e) -> void:
 	kills += 1
-	# Enemies drop XP gems + gold. Chests/boosters live on the map (LootField).
 	if e.is_boss:
 		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
 		for i in 5:
@@ -256,36 +264,23 @@ func _on_enemy_died(e) -> void:
 		for i in 6:
 			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
 			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
-		spawn_weapon_pickup(e.global_position + Vector2(0, -40), Config.WEAPON_DROP_TYPES.pick_random())
 	else:
 		_spawn_gem(e.global_position, e.xp_tier)
 		var gd = Config.GOLD_DROP.get(e.xp_tier, null)
 		if gd != null and randf() < float(gd.chance):
 			_spawn_gold(e.global_position, int(gd.amount))
-		if randf() < Config.WEAPON_DROP_CHANCE:
-			spawn_weapon_pickup(e.global_position, Config.WEAPON_DROP_TYPES.pick_random())
+		if randf() < Config.ESSENCE_DROP_CHANCE:
+			_spawn_essence(e.global_position, Config.BIOMES[e.biome].family)
 
 
-# --- Pickups ----------------------------------------------------------------
-func _pick_pickup_kind() -> String:
-	var total := 0.0
-	for k in Config.PICKUP_WEIGHTS:
-		total += Config.PICKUP_WEIGHTS[k]
-	var roll := randf() * total
-	for k in Config.PICKUP_WEIGHTS:
-		roll -= Config.PICKUP_WEIGHTS[k]
-		if roll <= 0.0:
-			return k
-	return "heal"
-
-
-func _spawn_pickup(pos: Vector2, kind: String) -> void:
-	var p := Pickup.new()
-	p.kind = kind
-	p.player = player
-	p.game = self
-	p.global_position = pos
-	pickups_root.add_child(p)
+# --- Drops ----------------------------------------------------------------------
+func _spawn_gem(pos: Vector2, tier: String) -> void:
+	var g := Gem.new()
+	g.value = Config.GEM_VALUES[tier]
+	g.player = player
+	g.game = self
+	g.global_position = pos
+	gems_root.add_child(g)
 
 
 func _spawn_gold(pos: Vector2, amount: int) -> void:
@@ -297,37 +292,22 @@ func _spawn_gold(pos: Vector2, amount: int) -> void:
 	pickups_root.add_child(g)
 
 
+func _spawn_essence(pos: Vector2, family: String) -> void:
+	var es := Essence.new()
+	es.family = family
+	es.value = Config.ESSENCE_VALUE
+	es.player = player
+	es.game = self
+	es.global_position = pos + Vector2(randf_range(-8, 8), randf_range(-8, 8))
+	pickups_root.add_child(es)
+
+
+func add_insight(family: String, amount: float) -> void:
+	player.add_insight(family, amount)
+
+
 func add_run_gold(n: int) -> void:
 	run_gold += int(round(n * greed_mult))
-
-
-func spawn_weapon_pickup(pos: Vector2, kind: String) -> void:
-	var w := WeaponPickup.new()
-	w.weapon_kind = kind
-	w.player = player
-	w.global_position = pos
-	pickups_root.add_child(w)
-
-
-func _spawn_chest(pos: Vector2) -> void:
-	var c := Chest.new()
-	c.player = player
-	c.game = self
-	c.global_position = pos
-	pickups_root.add_child(c)
-
-
-func open_chest(pos: Vector2) -> void:
-	# Instant reward — NO card screen. Chests are a windfall, not an interruption.
-	Fx.death_pop(pos, Color(0.95, 0.75, 0.25))
-	Fx.shake(0.35)
-	add_run_gold(Config.CHEST_GOLD)
-	player.heal(Config.CHEST_HEAL)
-	var reward := grant_random_upgrade()
-	var label := "+%d gold" % Config.CHEST_GOLD
-	if reward != "":
-		label += "  •  " + reward
-	Fx.floating_text(pos + Vector2(0, -22), label, Color(1.0, 0.85, 0.4))
 
 
 func vacuum_all_gems() -> void:
@@ -340,17 +320,7 @@ func bomb() -> void:
 	Fx.shake(Config.SHAKE_ON_BOMB)
 	for e in enemies_root.get_children():
 		if e is Enemy and e.global_position.distance_to(player.global_position) < Config.BOMB_RADIUS:
-			e.take_damage(Config.BOMB_DAMAGE)
-
-
-# --- Gems -------------------------------------------------------------------
-func _spawn_gem(pos: Vector2, tier: String) -> void:
-	var g := Gem.new()
-	g.value = Config.GEM_VALUES[tier]
-	g.player = player
-	g.game = self
-	g.global_position = pos
-	gems_root.add_child(g)
+			e.take_damage(Config.BOMB_DAMAGE, "arcane")
 
 
 func _merge_gems() -> void:
@@ -377,25 +347,23 @@ func _merge_gems() -> void:
 			break
 
 
-# --- Progression ------------------------------------------------------------
-func _capture_shot() -> void:
-	await RenderingServer.frame_post_draw
-	var img := get_viewport().get_texture().get_image()
-	img.save_png(OS.get_environment("SHOT"))
-	get_tree().quit()
+# --- Chests ----------------------------------------------------------------------
+func open_chest(pos: Vector2) -> void:
+	Fx.death_pop(pos, Color(0.95, 0.75, 0.25))
+	Fx.shake(0.35)
+	add_run_gold(Config.CHEST_GOLD)
+	player.heal(Config.CHEST_HEAL)
+	var reward := grant_random_upgrade()
+	var label := "+%d gold" % Config.CHEST_GOLD
+	if reward != "":
+		label += "  •  " + reward
+	Fx.floating_text(pos + Vector2(0, -22), label, Color(1.0, 0.85, 0.4))
 
 
-func _sim_report() -> void:
-	var kps: float = kills / maxf(elapsed, 0.001)
-	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)
-	print("SIM_RESULT weapon=%s time=%.0f kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f enemies=%d" % [
-		Sim.weapon, elapsed, kills, kps, dps, Sim.damage_taken, enemies_root.get_child_count()])
-	get_tree().quit()
-
-
+# --- Vital progression -------------------------------------------------------------
 func add_xp(amount: float) -> void:
 	if Sim.enabled:
-		return  # no leveling in sim — measure the base weapon
+		return
 	xp += amount * growth_mult
 	while xp >= xp_to_next:
 		xp -= xp_to_next
@@ -419,9 +387,6 @@ func _draw_cards(n: int) -> Array:
 	var elig: Array = []
 	for def in Upgrades.pool():
 		var id: String = def.id
-		var tag: String = def.get("weapon", "any")
-		if tag != "any" and tag != player.weapon_kind:
-			continue
 		if banished.has(id) or locked.has(id):
 			continue
 		if int(upgrade_levels.get(id, 0)) >= int(def.max):
@@ -467,8 +432,6 @@ func _apply_choice(id: String) -> void:
 			locked[lk] = true
 
 
-## Auto-apply one upgrade with no card screen (chest reward). Prefers non-fork
-## cards so a chest never silently commits you to a locked branch.
 func grant_random_upgrade() -> String:
 	var cards := _draw_cards(5)
 	if cards.is_empty():
@@ -509,7 +472,23 @@ func _after_choice() -> void:
 		get_tree().paused = false
 
 
+# --- Sim / tooling -------------------------------------------------------------------
+func _capture_shot() -> void:
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	img.save_png(OS.get_environment("SHOT"))
+	get_tree().quit()
+
+
+func _sim_report() -> void:
+	var kps: float = kills / maxf(elapsed, 0.001)
+	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)
+	print("SIM_RESULT time=%.0f kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f enemies=%d" % [
+		elapsed, kills, kps, dps, Sim.damage_taken, enemies_root.get_child_count()])
+	get_tree().quit()
+
+
 func _on_player_died() -> void:
 	game_over = true
-	Save.add_gold(run_gold)  # bank immediately so it's never lost
+	Save.add_gold(run_gold)
 	hud.show_death(elapsed, kills, level, run_gold)
