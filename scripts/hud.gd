@@ -27,13 +27,13 @@ func _ready() -> void:
 	xp_bar.offset_bottom = 12.0
 	add_child(xp_bar)
 
-	time_label = _make_label(Vector2(590, 22), 30)
+	time_label = _make_label(Vector2(580, 20), 40)
 	time_label.text = "00:00"
-	level_label = _make_label(Vector2(600, 60), 20)
-	hp_label = _make_label(Vector2(20, 22), 22)
-	class_label = _make_label(Vector2(20, 52), 18)
-	info_label = _make_label(Vector2(1040, 22), 22)
-	gold_label = _make_label(Vector2(1040, 74), 20)
+	level_label = _make_label(Vector2(590, 66), 26)
+	hp_label = _make_label(Vector2(20, 20), 28)
+	class_label = _make_label(Vector2(20, 56), 22)
+	info_label = _make_label(Vector2(1030, 20), 26)
+	gold_label = _make_label(Vector2(1030, 84), 26)
 
 	death_overlay = ColorRect.new()
 	death_overlay.color = Color(0, 0, 0, 0.6)
@@ -45,7 +45,7 @@ func _ready() -> void:
 	death_label.set_anchors_preset(Control.PRESET_FULL_RECT)
 	death_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	death_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	death_label.add_theme_font_size_override("font_size", 40)
+	death_label.add_theme_font_size_override("font_size", 48)
 	death_overlay.add_child(death_label)
 
 

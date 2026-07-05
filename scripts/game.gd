@@ -88,6 +88,7 @@ func _ready() -> void:
 	add_child(player)
 
 	var cam := GameCamera.new()
+	cam.zoom = Vector2(Config.CAMERA_ZOOM, Config.CAMERA_ZOOM)
 	player.add_child(cam)
 	cam.make_current()
 

@@ -38,6 +38,9 @@ var MELEE_RANGE := 132.0
 var MELEE_ARC_DEG := 100.0
 var MELEE_KNOCKBACK := 0.0  # base; raised by the Heavy Blows card
 
+# --- Display ----------------------------------------------------------------
+var CAMERA_ZOOM := 1.5  # >1 zooms in so entities read at a normal size
+
 # --- Player misc ------------------------------------------------------------
 var PICKUP_RADIUS := 72.0
 var CONTACT_TICK := 0.5
