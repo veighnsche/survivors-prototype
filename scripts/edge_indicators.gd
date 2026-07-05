@@ -22,7 +22,10 @@ func _draw() -> void:
 	var vp := get_viewport_rect().size
 	var center := vp * 0.5
 	var margin := 34.0
+	var span: float = Config.INDICATOR_FADE_MAX - Config.INDICATOR_FADE_MIN
 
+	# Gather off-screen loot in range, then show only the nearest few.
+	var cands: Array = []
 	for item in get_tree().get_nodes_in_group("guided"):
 		if not is_instance_valid(item):
 			continue
@@ -30,23 +33,21 @@ func _draw() -> void:
 		var dist := to_item.length()
 		if dist < 1.0:
 			continue
-
-		# Alpha: full when just off-screen, fading to 0 at the far threshold.
-		var span: float = Config.INDICATOR_FADE_MAX - Config.INDICATOR_FADE_MIN
 		var a := clampf((Config.INDICATOR_FADE_MAX - dist) / span, 0.0, 1.0)
 		if a <= 0.02:
 			continue
-
-		# Camera is centered on the player, so screen pos = center + world offset.
 		var screen := center + to_item
 		if screen.x > margin and screen.x < vp.x - margin and screen.y > margin and screen.y < vp.y - margin:
 			continue  # already visible on-screen
-
-		var dir := to_item.normalized()
 		var color := Color.WHITE
 		if item.has_method("indicator_color"):
 			color = item.indicator_color()
-		_draw_beacon(_edge_point(center, dir, vp, margin), dir, color, a)
+		cands.append({"dist": dist, "dir": to_item.normalized(), "a": a, "color": color})
+
+	cands.sort_custom(func(x, y): return x.dist < y.dist)
+	for i in min(int(Config.INDICATOR_MAX), cands.size()):
+		var c = cands[i]
+		_draw_beacon(_edge_point(center, c.dir, vp, margin), c.dir, c.color, c.a)
 
 
 func _edge_point(center: Vector2, dir: Vector2, vp: Vector2, margin: float) -> Vector2:

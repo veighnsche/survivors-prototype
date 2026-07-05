@@ -116,13 +116,14 @@ var OBSTACLE_DENSITY := 22  # percent of world cells that hold a building
 var ENEMY_AVOID_DIST := 64.0  # how far ahead enemies look to steer around buildings
 
 # Off-screen loot indicators (chests/pickups)
-var INDICATOR_FADE_MIN := 320.0   # at/under this distance the beacon is full alpha
-var INDICATOR_FADE_MAX := 1200.0  # beyond this the beacon is fully faded
+var INDICATOR_FADE_MIN := 280.0   # at/under this distance the beacon is full alpha
+var INDICATOR_FADE_MAX := 850.0   # beyond this the beacon is fully faded
+var INDICATOR_MAX := 3            # never show more than this many beacons at once
 
 # Loot placed ON the map (streamed per world cell, like buildings)
-var LOOT_CELL := 480.0
+var LOOT_CELL := 560.0
 var LOOT_VIEW_CELLS := 4
-var LOOT_DENSITY := 28       # percent of world cells that hold floor loot (booster/chest)
+var LOOT_DENSITY := 12       # percent of world cells that hold floor loot (booster/chest)
 var LOOT_JITTER := 0.55      # offset fraction of the cell (smaller = more even spacing)
 
 var BOMB_DAMAGE := 80.0
