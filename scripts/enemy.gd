@@ -15,6 +15,8 @@ var xp_tier := "small"  # which gem tier this enemy drops on death
 
 var target: Node2D
 var _dead := false
+var _dmg_accum := 0.0
+var _dmg_cd := 0.0
 
 
 func setup(stats: Dictionary, tgt: Node2D) -> void:
@@ -47,7 +49,13 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func _physics_process(_delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	if _dmg_accum > 0.0:
+		_dmg_cd -= delta
+		if _dmg_cd <= 0.0:
+			Fx.damage_number(global_position, _dmg_accum)
+			_dmg_accum = 0.0
+			_dmg_cd = 0.18
 	if _dead or target == null or not is_instance_valid(target):
 		return
 	var dir := (target.global_position - global_position).normalized()
@@ -59,8 +67,13 @@ func take_damage(amount: float) -> void:
 	if _dead:
 		return
 	hp -= amount
+	if Config.SHOW_DAMAGE_NUMBERS:
+		_dmg_accum += amount
 	if hp <= 0.0:
 		_dead = true
+		if _dmg_accum > 0.0:
+			Fx.damage_number(global_position, _dmg_accum)
+		Fx.death_pop(global_position, color)
 		died.emit()
 		queue_free()
 		return

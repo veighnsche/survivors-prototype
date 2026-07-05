@@ -7,6 +7,8 @@ var player: Player
 var enemies_root: Node2D
 var projectiles_root: Node2D
 var gems_root: Node2D
+var pickups_root: Node2D
+var fx_root: Node2D
 var hud: HUD
 var card_screen: CardScreen
 var class_select: ClassSelect
@@ -50,6 +52,10 @@ func _ready() -> void:
 	gems_root.name = "Gems"
 	add_child(gems_root)
 
+	pickups_root = Node2D.new()
+	pickups_root.name = "Pickups"
+	add_child(pickups_root)
+
 	enemies_root = Node2D.new()
 	enemies_root.name = "Enemies"
 	add_child(enemies_root)
@@ -63,9 +69,15 @@ func _ready() -> void:
 	player.died.connect(_on_player_died)
 	add_child(player)
 
-	var cam := Camera2D.new()
+	var cam := GameCamera.new()
 	player.add_child(cam)
 	cam.make_current()
+
+	fx_root = Node2D.new()
+	fx_root.name = "Fx"
+	add_child(fx_root)
+	Fx.layer = fx_root
+	Fx.camera = cam
 
 	hud = HUD.new()
 	add_child(hud)
@@ -190,11 +202,51 @@ func _recycle_far_enemies() -> void:
 func _on_enemy_died(e) -> void:
 	kills += 1
 	if e.is_boss:
+		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
 		for i in 5:
 			var off := Vector2(randf_range(-40.0, 40.0), randf_range(-40.0, 40.0))
 			_spawn_gem(e.global_position + off, "large")
+		_spawn_pickup(e.global_position + Vector2(30, 0), "heal")
+		_spawn_pickup(e.global_position + Vector2(-30, 0), "bomb")
 	else:
 		_spawn_gem(e.global_position, e.xp_tier)
+		if randf() < float(Config.PICKUP_DROP_CHANCE.get(e.xp_tier, 0.0)):
+			_spawn_pickup(e.global_position, _pick_pickup_kind())
+
+
+# --- Pickups ----------------------------------------------------------------
+func _pick_pickup_kind() -> String:
+	var total := 0.0
+	for k in Config.PICKUP_WEIGHTS:
+		total += Config.PICKUP_WEIGHTS[k]
+	var roll := randf() * total
+	for k in Config.PICKUP_WEIGHTS:
+		roll -= Config.PICKUP_WEIGHTS[k]
+		if roll <= 0.0:
+			return k
+	return "heal"
+
+
+func _spawn_pickup(pos: Vector2, kind: String) -> void:
+	var p := Pickup.new()
+	p.kind = kind
+	p.player = player
+	p.game = self
+	p.global_position = pos
+	pickups_root.add_child(p)
+
+
+func vacuum_all_gems() -> void:
+	for g in gems_root.get_children():
+		if g is Gem:
+			g.attracting = true
+
+
+func bomb() -> void:
+	Fx.shake(Config.SHAKE_ON_BOMB)
+	for e in enemies_root.get_children():
+		if e is Enemy and e.global_position.distance_to(player.global_position) < Config.BOMB_RADIUS:
+			e.take_damage(Config.BOMB_DAMAGE)
 
 
 # --- Gems -------------------------------------------------------------------

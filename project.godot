@@ -12,6 +12,7 @@ config/features=PackedStringArray("4.7", "Forward Plus")
 [autoload]
 
 Config="*res://scripts/config.gd"
+Fx="*res://scripts/fx.gd"
 
 [display]
 

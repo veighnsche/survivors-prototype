@@ -1,0 +1,51 @@
+class_name Pickup
+extends Node2D
+## A floor treasure the player collects by touch: Heal / Magnet / Bomb.
+
+const TOUCH := 28.0
+
+var kind := "heal"
+var player: Node2D
+var game
+
+
+func _ready() -> void:
+	z_index = 3
+	queue_redraw()
+
+
+func _process(_delta: float) -> void:
+	if player != null and is_instance_valid(player):
+		if global_position.distance_to(player.global_position) <= TOUCH:
+			_collect()
+
+
+func _collect() -> void:
+	match kind:
+		"heal":
+			player.heal(Config.HEAL_AMOUNT)
+		"magnet":
+			game.vacuum_all_gems()
+		"bomb":
+			game.bomb()
+	Fx.death_pop(global_position, _color())
+	queue_free()
+
+
+func _color() -> Color:
+	match kind:
+		"heal":
+			return Color(0.4, 0.9, 0.45)
+		"magnet":
+			return Color(0.4, 0.72, 1.0)
+		"bomb":
+			return Color(0.96, 0.6, 0.22)
+	return Color.WHITE
+
+
+func _draw() -> void:
+	var c := _color()
+	draw_circle(Vector2.ZERO, 12.0, c)
+	draw_arc(Vector2.ZERO, 12.0, 0.0, TAU, 22, Color(1, 1, 1, 0.85), 2.0)
+	var letter: String = {"heal": "+", "magnet": "M", "bomb": "B"}.get(kind, "?")
+	draw_string(ThemeDB.fallback_font, Vector2(-5, 6), letter, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color(0.1, 0.1, 0.12))

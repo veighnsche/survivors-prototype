@@ -230,11 +230,20 @@ func take_damage(amount: float) -> void:
 	if dead:
 		return
 	hp -= amount
+	Fx.shake(Config.SHAKE_ON_HIT)
+	modulate = Color(1.7, 0.6, 0.6)
+	create_tween().tween_property(self, "modulate", Color.WHITE, 0.18)
 	if hp <= 0.0:
 		hp = 0.0
 		dead = true
 		velocity = Vector2.ZERO
 		died.emit()
+
+
+func heal(amount: float) -> void:
+	hp = min(max_hp, hp + amount)
+	modulate = Color(0.6, 1.6, 0.6)
+	create_tween().tween_property(self, "modulate", Color.WHITE, 0.2)
 
 
 func _on_hurt_area_entered(area: Area2D) -> void:

@@ -58,6 +58,17 @@ var GEM_COLLECT_DIST := 15.0
 var REROLL_CHARGES := 3
 var BANISH_CHARGES := 2
 
+# --- Pickups & juice --------------------------------------------------------
+var PICKUP_DROP_CHANCE := {"small": 0.004, "medium": 0.02, "large": 0.12}
+var PICKUP_WEIGHTS := {"heal": 0.6, "magnet": 0.25, "bomb": 0.15}
+var HEAL_AMOUNT := 40.0
+var BOMB_DAMAGE := 80.0
+var BOMB_RADIUS := 720.0
+var SHOW_DAMAGE_NUMBERS := true
+var SHAKE_ON_HIT := 0.25
+var SHAKE_ON_BOMB := 0.7
+var SHAKE_ON_BOSS_DEATH := 0.9
+
 
 func xp_for_level(l: int) -> float:
 	# Fast early, then accelerating cost per level.
