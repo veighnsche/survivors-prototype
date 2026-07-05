@@ -15,7 +15,7 @@ var _hit: Dictionary = {}  # enemies already hit, so we don't double-tick one
 func _ready() -> void:
 	z_index = 8
 	collision_layer = 8
-	collision_mask = 2
+	collision_mask = 2 | 16  # enemy hitboxes (2) + buildings (16)
 	monitoring = true
 	var cs := CollisionShape2D.new()
 	var shape := CircleShape2D.new()
@@ -23,6 +23,7 @@ func _ready() -> void:
 	cs.shape = shape
 	add_child(cs)
 	area_entered.connect(_on_area_entered)
+	body_entered.connect(_on_body_entered)
 	queue_redraw()
 
 
@@ -46,6 +47,11 @@ func _on_area_entered(area: Area2D) -> void:
 		pierce -= 1
 	else:
 		queue_free()
+
+
+func _on_body_entered(_body: Node) -> void:
+	# Blocked by a building — despawn regardless of pierce budget.
+	queue_free()
 
 
 func _draw() -> void:
