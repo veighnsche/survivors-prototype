@@ -77,6 +77,13 @@ func _ready() -> void:
 	collision_layer = 1
 	collision_mask = 16  # collide with obstacles/buildings
 
+	# Body collision shape (this is what actually collides with buildings).
+	var body_cs := CollisionShape2D.new()
+	var body_circle := CircleShape2D.new()
+	body_circle.radius = radius
+	body_cs.shape = body_circle
+	add_child(body_cs)
+
 	var hurtbox := Area2D.new()
 	hurtbox.collision_layer = 4
 	hurtbox.collision_mask = 2

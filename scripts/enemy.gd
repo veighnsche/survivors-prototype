@@ -31,8 +31,15 @@ func setup(stats: Dictionary, tgt: Node2D) -> void:
 func _ready() -> void:
 	add_to_group("enemies")
 	z_index = 5
-	collision_layer = 0  # body itself collides with nothing
-	collision_mask = 0
+	collision_layer = 0     # body isn't on any layer (enemies don't block each other)
+	collision_mask = 16     # but they DO collide with buildings
+
+	# Body collision shape so buildings are solid to enemies too.
+	var body_cs := CollisionShape2D.new()
+	var body_circle := CircleShape2D.new()
+	body_circle.radius = radius
+	body_cs.shape = body_circle
+	add_child(body_cs)
 
 	# Hitbox: detected by the player's hurtbox and by projectiles (layer 2).
 	var hitbox := Area2D.new()
@@ -59,6 +66,17 @@ func _physics_process(delta: float) -> void:
 	if _dead or target == null or not is_instance_valid(target):
 		return
 	var dir := (target.global_position - global_position).normalized()
+
+	# Obstacle avoidance: if a building is straight ahead, slide the heading along
+	# the wall so we route around it instead of grinding into the corner.
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(global_position, global_position + dir * Config.ENEMY_AVOID_DIST, 16)
+	var hit := space.intersect_ray(q)
+	if hit:
+		var n: Vector2 = hit.normal
+		var slid := dir - n * dir.dot(n)
+		dir = slid.normalized() if slid.length() > 0.05 else Vector2(-n.y, n.x)
+
 	velocity = dir * speed
 	move_and_slide()
 

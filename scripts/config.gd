@@ -101,6 +101,7 @@ var TANK_CHEST_CHANCE := 0.08
 var OBSTACLE_CELL := 420.0
 var OBSTACLE_VIEW_CELLS := 4
 var OBSTACLE_DENSITY := 22  # percent of world cells that hold a building
+var ENEMY_AVOID_DIST := 64.0  # how far ahead enemies look to steer around buildings
 
 var BOMB_DAMAGE := 80.0
 var BOMB_RADIUS := 720.0
