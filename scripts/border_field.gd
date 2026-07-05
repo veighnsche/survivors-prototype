@@ -68,9 +68,8 @@ func _make(c: Vector2i):
 	var gate := Vector2i(int(floor(pos.x / GATE)), int(floor(pos.y / GATE)))
 	if posmod(hash(Vector3i(world_seed ^ 0x77AA11, gate.x, gate.y)), 100) < Config.WALL_GAP_PCT:
 		return null
-	var w := ObstacleBody.new()
+	var w := WallBody.new()
 	w.size = Vector2(TILE + 4.0, TILE + 4.0)
-	w.style = Config.BIOMES[b].obstacle
-	w.color = Color(Config.BIOMES[b].color).darkened(0.45)
+	w.tint = Color(Config.BIOMES[b].color)
 	w.global_position = pos
 	return w

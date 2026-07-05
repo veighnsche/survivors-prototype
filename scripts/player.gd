@@ -16,9 +16,11 @@ var speed := 210.0
 var radius := 13.0
 var color := Color(0.87, 0.85, 0.78)
 
-# Cast cycle (shared by all basic attacks)
+# Cast cycle: one basic attack per global cycle; each attack has its own cd.
 var cast_cd := 0.0
+var atk_cds: Dictionary = {}
 var bolt_count := 1
+var current_biome := "commons"  # set each frame by the run director
 
 # Global modifiers
 var damage_mult := 1.0
@@ -249,9 +251,10 @@ func unlock_skill(fam: String, key: String) -> void:
 
 
 ## Central damage funnel: mults, crits, Shatter, siphon, use-deepens insight.
-func deal(e, base: float, dtype: String, fam: String) -> void:
+## Returns the damage actually applied (leech etc. build on it).
+func deal(e, base: float, dtype: String, fam: String) -> float:
 	if e == null or not is_instance_valid(e):
-		return
+		return 0.0
 	if e.slow_t > 0.0 and has_shatter:
 		base *= 1.45
 	var final_dtype := dtype
@@ -266,6 +269,7 @@ func deal(e, base: float, dtype: String, fam: String) -> void:
 		RunLog.bump("healing", "siphon", applied * siphon_pct)
 	if fam != "" and applied > 0.0:
 		add_insight(fam, 0.008)
+	return applied
 
 
 # --- The caster brain: ONE basic attack per cycle, the mathematically best one -------
@@ -284,100 +288,198 @@ func _available_basics() -> Array:
 	return out
 
 
+## Utility scoring: damage + survival relief + healing need + home-turf lean.
+func _score_attack(key: String, atk: Dictionary) -> Dictionary:
+	var dmg_base: float = atk.damage * (cantrip_mult if key == "force" else fam_power.get(key, 1.0))
+	var score := 0.0
+	var target = null
+	match atk.kind:
+		"bolt":
+			var t := _nearest_enemy_in(atk.range)
+			if t == null:
+				return {"score": 0.0}
+			score = _est(t, dmg_base, atk.dtype) * bolt_count
+			if atk.has("explode"):
+				var er: float = atk.explode * blast_radius_mult
+				for e2 in get_tree().get_nodes_in_group("enemies"):
+					if e2 != t and t.global_position.distance_to(e2.global_position) <= er:
+						score += _est(e2, dmg_base * 0.6, atk.dtype)
+			if atk.has("leech"):
+				# healing value scales with how hurt we are
+				var urgency: float = clampf(1.0 - hp / max_hp, 0.0, 1.0)
+				score += _est(t, dmg_base, atk.dtype) * atk.leech * urgency * 3.0
+			target = t
+		"cleave":
+			var aim_t := _nearest_enemy_in(atk.range)
+			if aim_t == null:
+				return {"score": 0.0}
+			var aim: Vector2 = (aim_t.global_position - global_position).normalized()
+			var half: float = deg_to_rad(atk.arc) * 0.5
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var to_e: Vector2 = e.global_position - global_position
+				if to_e.length() <= atk.range and absf(aim.angle_to(to_e.normalized())) <= half:
+					score += _est(e, dmg_base, atk.dtype)
+					if atk.has("slow") and e.slow_t <= 0.0:
+						score += e.speed * 0.02  # slow utility: fast enemies are worth chilling
+			target = aim_t
+		"chain":
+			var t := _nearest_enemy_in(atk.range)
+			if t == null:
+				return {"score": 0.0}
+			score = _est(t, dmg_base, atk.dtype)
+			var links := _chain_targets(t, int(atk.jumps), atk.jump_range)
+			for e in links:
+				score += _est(e, dmg_base * 0.8, atk.dtype)
+			target = t
+		"repulse":
+			# survival tool: value = damage + the contact damage you're relieving
+			var pressure := 0.0
+			var count := 0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if global_position.distance_to(e.global_position) <= atk.range:
+					score += _est(e, dmg_base, atk.dtype)
+					pressure += e.damage
+					count += 1
+			if count == 0:
+				return {"score": 0.0}
+			var urgency: float = clampf(1.3 - hp / max_hp, 0.3, 1.3)
+			score += pressure * urgency
+		"burst":
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if global_position.distance_to(e.global_position) <= atk.range:
+					score += _est(e, dmg_base, atk.dtype)
+			if score <= 0.0:
+				return {"score": 0.0}
+	# Home-turf attunement: lean toward the attack this biome teaches.
+	if key == Config.BIOMES[current_biome].family:
+		score *= Config.BIOME_ATTUNE_BIAS
+	return {"score": score, "target": target}
+
+
 func _cast_brain(delta: float) -> void:
 	cast_cd -= delta
+	for k in atk_cds:
+		atk_cds[k] = float(atk_cds[k]) - delta
 	if cast_cd > 0.0:
 		return
 
 	var best := ""
 	var best_score := 0.0
 	var best_target = null
-
 	for key in _available_basics():
+		if float(atk_cds.get(key, 0.0)) > 0.0:
+			continue
 		var atk: Dictionary = Config.BASIC_ATTACKS[key]
-		var dmg_base: float = atk.damage * (cantrip_mult if key == "force" else fam_power.get(key, 1.0))
-		if atk.has("arc"):
-			# melee cone: sum expected damage over everyone in reach
-			var aim_t := _nearest_enemy_in(atk.range)
-			if aim_t == null:
-				continue
-			var aim: Vector2 = (aim_t.global_position - global_position).normalized()
-			var half: float = deg_to_rad(atk.arc) * 0.5
-			var total := 0.0
-			for e in get_tree().get_nodes_in_group("enemies"):
-				var to_e: Vector2 = e.global_position - global_position
-				if to_e.length() <= atk.range and absf(aim.angle_to(to_e.normalized())) <= half:
-					total += _est(e, dmg_base, atk.dtype)
-			if total > best_score:
-				best_score = total
-				best = key
-				best_target = aim_t
-		else:
-			var t := _nearest_enemy_in(atk.range)
-			if t == null:
-				continue
-			var dmg: float = _est(t, dmg_base, atk.dtype) * bolt_count
-			if atk.has("explode"):
-				var er: float = atk.explode * blast_radius_mult
-				for e2 in get_tree().get_nodes_in_group("enemies"):
-					if e2 != t and t.global_position.distance_to(e2.global_position) <= er:
-						dmg += _est(e2, dmg_base * 0.6, atk.dtype)
-			if dmg > best_score:
-				best_score = dmg
-				best = key
-				best_target = t
+		var res := _score_attack(key, atk)
+		if float(res.score) > best_score:
+			best_score = res.score
+			best = key
+			best_target = res.get("target")
 
 	if best == "":
-		return  # nothing in range; cooldowns keep ticking, retry next frame
+		return  # nothing worth casting; retry next frame
 
 	var chosen: Dictionary = Config.BASIC_ATTACKS[best]
 	_cast_basic(best, chosen, best_target)
 	RunLog.bump("basic_casts", chosen.name)
-	cast_cd = chosen.interval * attack_speed_mult * boost_rate
+	atk_cds[best] = chosen.cooldown * attack_speed_mult * boost_rate
+	cast_cd = Config.CAST_CYCLE * attack_speed_mult * boost_rate
+
+
+func _chain_targets(from_enemy, jumps: int, jump_range: float) -> Array:
+	var links: Array = []
+	var seen := {from_enemy.get_instance_id(): true}
+	var current = from_enemy
+	for j in jumps:
+		var next = null
+		var best_d := jump_range * jump_range
+		for e in get_tree().get_nodes_in_group("enemies"):
+			if seen.has(e.get_instance_id()):
+				continue
+			var d: float = current.global_position.distance_squared_to(e.global_position)
+			if d < best_d:
+				best_d = d
+				next = e
+		if next == null:
+			break
+		seen[next.get_instance_id()] = true
+		links.append(next)
+		current = next
+	return links
 
 
 func _cast_basic(key: String, atk: Dictionary, target) -> void:
 	var fam := "" if key == "force" else key
 	var dmg_base: float = atk.damage * (cantrip_mult if key == "force" else fam_power.get(key, 1.0))
-	if atk.has("arc"):
-		var aim: Vector2 = (target.global_position - global_position).normalized()
-		var half: float = deg_to_rad(atk.arc) * 0.5
-		for e in get_tree().get_nodes_in_group("enemies"):
-			var to_e: Vector2 = e.global_position - global_position
-			if to_e.length() <= atk.range and absf(aim.angle_to(to_e.normalized())) <= half:
-				deal(e, dmg_base, atk.dtype, fam)
-				if atk.has("knockback"):
+	match atk.kind:
+		"bolt":
+			var base_dir: Vector2 = (target.global_position - global_position).normalized()
+			var spread := deg_to_rad(12.0)
+			for i in bolt_count:
+				var offset := 0.0
+				if bolt_count > 1:
+					offset = spread * (i - (bolt_count - 1) / 2.0)
+				var p := Projectile.new()
+				p.damage = dmg_base * damage_mult * boost_dmg
+				p.speed = atk.speed
+				p.life = Config.BOLT_LIFE
+				p.direction = base_dir.rotated(offset)
+				p.dtype = atk.dtype
+				p.fam = fam
+				if atk.has("explode"):
+					p.explode_radius = atk.explode * blast_radius_mult
+					p.explode_factor = 0.6
+				if atk.has("leech"):
+					p.leech = atk.leech
+				if key != "force":
+					p.tint = Config.FAMILY_COLORS[key]
+				p.source = self
+				p.global_position = global_position
+				projectile_parent.add_child(p)
+		"cleave":
+			var aim: Vector2 = (target.global_position - global_position).normalized()
+			var half: float = deg_to_rad(atk.arc) * 0.5
+			var slow_factor := maxf(0.25, atk.slow - 0.05 * chill_level)
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var to_e: Vector2 = e.global_position - global_position
+				if to_e.length() <= atk.range and absf(aim.angle_to(to_e.normalized())) <= half:
+					deal(e, dmg_base, atk.dtype, fam)
+					e.apply_slow(slow_factor, 1.8)
+			var ring := RingFx.new()
+			ring.max_radius = atk.range
+			ring.color = Config.FAMILY_COLORS.control
+			ring.global_position = global_position
+			projectile_parent.add_child(ring)
+		"chain":
+			var pts := PackedVector2Array([global_position, target.global_position])
+			deal(target, dmg_base, atk.dtype, fam)
+			for e in _chain_targets(target, int(atk.jumps), atk.jump_range):
+				deal(e, dmg_base * 0.8, atk.dtype, fam)
+				pts.append(e.global_position)
+			var bolt := ChainFx.new()
+			bolt.points = pts
+			bolt.color = Config.FAMILY_COLORS.sight
+			projectile_parent.add_child(bolt)
+		"repulse":
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var to_e: Vector2 = e.global_position - global_position
+				if to_e.length() <= atk.range:
+					deal(e, dmg_base, atk.dtype, fam)
 					e.global_position += to_e.normalized() * atk.knockback
-		var ring := RingFx.new()
-		ring.max_radius = atk.range
-		ring.color = Config.FAMILY_COLORS.ward
-		ring.global_position = global_position
-		projectile_parent.add_child(ring)
-		return
-
-	var base_dir: Vector2 = (target.global_position - global_position).normalized()
-	var spread := deg_to_rad(12.0)
-	for i in bolt_count:
-		var offset := 0.0
-		if bolt_count > 1:
-			offset = spread * (i - (bolt_count - 1) / 2.0)
-		var p := Projectile.new()
-		p.damage = dmg_base * damage_mult * boost_dmg
-		p.speed = atk.speed
-		p.life = Config.BOLT_LIFE
-		p.direction = base_dir.rotated(offset)
-		p.dtype = atk.dtype
-		p.fam = fam
-		if atk.has("explode"):
-			p.explode_radius = atk.explode * blast_radius_mult
-			p.explode_factor = 0.6
-		if atk.has("slow"):
-			p.slow_factor = maxf(0.25, atk.slow - 0.05 * chill_level)
-		if key != "force":
-			p.tint = Config.FAMILY_COLORS[key]
-		p.source = self
-		p.global_position = global_position
-		projectile_parent.add_child(p)
+			var ring := RingFx.new()
+			ring.max_radius = atk.range
+			ring.color = Config.FAMILY_COLORS.ward
+			ring.global_position = global_position
+			projectile_parent.add_child(ring)
+		"burst":
+			for e in get_tree().get_nodes_in_group("enemies"):
+				if global_position.distance_to(e.global_position) <= atk.range:
+					deal(e, dmg_base, atk.dtype, fam)
+			var ring := RingFx.new()
+			ring.max_radius = atk.range
+			ring.color = Config.FAMILY_COLORS.summon
+			ring.global_position = global_position
+			projectile_parent.add_child(ring)
 
 
 func _nearest_enemy_in(reach: float) -> Node2D:
@@ -613,6 +715,12 @@ func heal(amount: float) -> void:
 	hp = min(max_hp, hp + amount)
 	modulate = Color(0.6, 1.6, 0.6)
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.2)
+
+
+## Quiet heal for per-hit lifesteal (no flash spam).
+func leech_heal(amount: float) -> void:
+	hp = min(max_hp, hp + amount)
+	RunLog.bump("healing", "leech", amount)
 
 
 func _on_hurt_area_entered(area: Area2D) -> void:

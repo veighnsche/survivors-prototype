@@ -73,6 +73,11 @@ func _make(c: Vector2i, cell: float):
 	var oy := (float(posmod(hy, 10000)) / 10000.0 - 0.5) * cell * jit
 	var pos := Vector2(c) * cell + Vector2(cell * 0.5, cell * 0.5) + Vector2(ox, oy)
 
+	# Never bury loot inside a wall/building — nudge it out, or skip the cell.
+	pos = _free_spot(pos)
+	if pos == Vector2.INF:
+		return null
+
 	var roll := posmod(ht, 100)
 	var node
 	if roll < 86:
@@ -88,6 +93,21 @@ func _make(c: Vector2i, cell: float):
 	node.origin_cell = c
 	node.global_position = pos
 	return node
+
+
+## Returns a nearby position clear of collision bodies, or Vector2.INF if the
+## whole neighbourhood is blocked.
+func _free_spot(pos: Vector2) -> Vector2:
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsPointQueryParameters2D.new()
+	q.collision_mask = 16
+	q.collide_with_bodies = true
+	q.collide_with_areas = false
+	for off in [Vector2.ZERO, Vector2(90, 0), Vector2(-90, 0), Vector2(0, 90), Vector2(0, -90), Vector2(120, 120), Vector2(-120, -120)]:
+		q.position = pos + off
+		if space.intersect_point(q, 1).is_empty():
+			return pos + off
+	return Vector2.INF
 
 
 func _pickup_kind(h: int) -> String:

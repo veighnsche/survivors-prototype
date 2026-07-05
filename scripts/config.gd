@@ -9,15 +9,20 @@ var CAMERA_ZOOM := 1.6
 # The caster fires exactly one basic attack per cast cycle — whichever the
 # brain computes will deal the most damage right now. "force" is the
 # tabula-rasa starter every run begins with.
+# kind: bolt (projectile), cleave (cone), chain (instant jumps), repulse
+# (radial knockback wave), burst (big radial AoE). cooldown is per-attack; the
+# caster cycles globally every CAST_CYCLE and picks ONE off-cooldown attack.
 var BASIC_ATTACKS := {
-	"force":   {"name": "Force Bolt",   "interval": 0.45, "damage": 4.5, "range": 360.0, "speed": 520.0, "dtype": "arcane"},
-	"blast":   {"name": "Firebolt",     "interval": 0.60, "damage": 6.0, "range": 380.0, "speed": 540.0, "dtype": "arcane", "explode": 56.0},
-	"ward":    {"name": "Bulwark Slam", "interval": 0.70, "damage": 9.0, "range": 125.0, "arc": 140.0, "dtype": "reflect", "knockback": 46.0},
-	"drain":   {"name": "Leech Bolt",   "interval": 0.60, "damage": 6.5, "range": 330.0, "speed": 460.0, "dtype": "necrotic"},
-	"control": {"name": "Frost Lance",  "interval": 0.60, "damage": 5.0, "range": 360.0, "speed": 500.0, "dtype": "frost", "slow": 0.55},
-	"sight":   {"name": "True Bolt",    "interval": 0.65, "damage": 5.5, "range": 480.0, "speed": 640.0, "dtype": "precise"},
-	"summon":  {"name": "Spirit Dart",  "interval": 0.40, "damage": 3.5, "range": 340.0, "speed": 480.0, "dtype": "physical"},
+	"force":   {"kind": "bolt",    "name": "Force Bolt",   "cooldown": 0.45, "damage": 4.5, "range": 360.0, "speed": 520.0, "dtype": "arcane"},
+	"blast":   {"kind": "bolt",    "name": "Fireball",     "cooldown": 0.80, "damage": 7.0, "range": 380.0, "speed": 460.0, "dtype": "arcane", "explode": 64.0},
+	"ward":    {"kind": "repulse", "name": "Repulse",      "cooldown": 1.60, "damage": 7.0, "range": 150.0, "dtype": "reflect", "knockback": 120.0},
+	"drain":   {"kind": "bolt",    "name": "Leech Bolt",   "cooldown": 0.70, "damage": 6.0, "range": 330.0, "speed": 460.0, "dtype": "necrotic", "leech": 0.35},
+	"control": {"kind": "cleave",  "name": "Frost Cleave", "cooldown": 0.75, "damage": 8.0, "range": 135.0, "arc": 150.0, "dtype": "frost", "slow": 0.5},
+	"sight":   {"kind": "chain",   "name": "Storm Lance",  "cooldown": 0.90, "damage": 6.0, "range": 480.0, "dtype": "precise", "jumps": 2, "jump_range": 190.0},
+	"summon":  {"kind": "burst",   "name": "Soulburst",    "cooldown": 2.60, "damage": 9.0, "range": 230.0, "dtype": "physical"},
 }
+var CAST_CYCLE := 0.42        # global pace of the one-attack-per-cycle brain
+var BIOME_ATTUNE_BIAS := 1.45 # the brain leans toward the local biome's attack
 var BOLT_LIFE := 0.75
 
 # --- Families (the six corners; v1 implements blast/ward/drain) ---------------
@@ -55,7 +60,7 @@ var BIOMES := {
 }
 var COMMONS_RADIUS := 450.0      # small guaranteed-Commons ring at spawn
 var SPAWN_FAIR_RADIUS := 2600.0  # fair pinwheel: all 3 biomes touch spawn as seed-rotated sectors
-var BIOME_CELL := 4200.0         # HUGE blobs beyond — several screens across; easy to enter, hard to leave
+var BIOME_CELL := 9000.0         # HUGE blobs — a biome is a whole territory, not a patch
 var BIOME_WEIGHTS := {"commons": 0.20, "thornreach": 0.16, "barrows": 0.16, "wilds": 0.16, "cragspire": 0.16, "hollow": 0.16}
 
 # Territory: enemies weaken and head home when outside their biome (no dragging
@@ -165,7 +170,7 @@ var CHEST_GOLD := 2
 var CHEST_HEAL := 25.0
 
 # Biome border walls
-var WALL_GAP_PCT := 30  # percent of border gate-cells left open as entrances
+var WALL_GAP_PCT := 12  # percent of border gate-cells left open as entrances (gates are rare)
 
 # Obstacles / buildings
 var OBSTACLE_CELL := 420.0

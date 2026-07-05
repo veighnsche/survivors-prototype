@@ -225,6 +225,7 @@ func _process(delta: float) -> void:
 			_last_inside_pos = player.global_position
 
 	var biome := biome_map.biome_at(player.global_position)
+	player.current_biome = biome  # the brain leans toward the local biome's attack
 	if biome != _cur_biome:
 		_cur_biome = biome
 		hud.show_banner("Entering %s" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)

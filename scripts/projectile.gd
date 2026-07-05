@@ -13,7 +13,8 @@ var explode_radius := 0.0
 var explode_factor := 0.6
 var dtype := "arcane"
 var fam := ""             # family credited when routed through the player
-var slow_factor := 1.0    # <1: Frost Lance chills what it hits
+var slow_factor := 1.0    # <1: chills what it hits
+var leech := 0.0          # >0: Leech Bolt heals the caster this fraction of damage
 var tint := Color(1.0, 1.0, 0.65)
 var source: Node
 var _hit: Dictionary = {}
@@ -68,7 +69,9 @@ func _deal(e, amount: float) -> void:
 		var credit := fam
 		if credit == "" and explode_radius > 0.0:
 			credit = "blast"
-		source.deal(e, base, dtype, credit)
+		var applied: float = source.deal(e, base, dtype, credit)
+		if leech > 0.0 and applied > 0.0:
+			source.leech_heal(applied * leech)
 	else:
 		e.take_damage(amount, dtype)
 
