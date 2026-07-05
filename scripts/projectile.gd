@@ -13,6 +13,7 @@ var explode_radius := 0.0
 var explode_factor := 0.6
 var dtype := "arcane"
 var fam := ""             # family credited when routed through the player
+var slow_factor := 1.0    # <1: Frost Lance chills what it hits
 var tint := Color(1.0, 1.0, 0.65)
 var source: Node
 var _hit: Dictionary = {}
@@ -49,6 +50,8 @@ func _on_area_entered(area: Area2D) -> void:
 		return
 	_hit[eid] = true
 	_deal(e, damage)
+	if slow_factor < 1.0:
+		e.apply_slow(slow_factor, 1.6)
 	if explode_radius > 0.0:
 		_explode(e.global_position, eid)
 	if pierce > 0:

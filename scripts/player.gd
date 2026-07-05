@@ -1,9 +1,11 @@
 class_name Player
 extends CharacterBody2D
-## The tabula-rasa caster. Force Bolt cantrip to start. Essence fills family
-## Insight: a family's first spell auto-awakens (loud), deeper spells unlock as
-## level-up cards you pick. A caster brain picks the best offensive each cast,
-## favoring the damage type the current enemies are weakest to. See DESIGN.md.
+## The tabula-rasa caster.
+## - BASIC ATTACKS are awakened by surviving in biomes (insight from gems).
+##   One basic attack fires per cast cycle — the brain picks whichever deals
+##   the most damage at that moment.
+## - SKILLS (Nova, Aegis, Rot, Mark, wisps...) are never automatic: they are
+##   level-up cards, gated by how deep your insight in that family runs.
 
 signal died
 signal awakened(fam)
@@ -14,11 +16,9 @@ var speed := 210.0
 var radius := 13.0
 var color := Color(0.87, 0.85, 0.78)
 
-# Casting
+# Cast cycle (shared by all basic attacks)
+var cast_cd := 0.0
 var bolt_count := 1
-var bolt_cd := 0.0
-var nova_cd := 0.0
-var wither_cd := 0.0
 
 # Global modifiers
 var damage_mult := 1.0
@@ -27,44 +27,45 @@ var pickup_radius := 72.0
 var armor := 0.0
 var recovery := 0.0
 
-# --- Family state -------------------------------------------------------------
+# --- Family state ---------------------------------------------------------------
 var insight := {"blast": 0.0, "ward": 0.0, "drain": 0.0, "control": 0.0, "sight": 0.0, "summon": 0.0}
-var granted_tier := {"blast": 0, "ward": 0, "drain": 0, "control": 0, "sight": 0, "summon": 0}
+var awakened_fams := {"blast": false, "ward": false, "drain": false, "control": false, "sight": false, "summon": false}
 
-# Blast
-var explode_radius := 0.0
-var nova_radius := 0.0
-var nova_damage := 0.0
-# Ward
+# --- Skills (unlocked ONLY via level-up cards) -----------------------------------
+var has_nova := false
+var nova_timer := 0.0
 var shield_max := 0.0
 var shield_hp := 0.0
 var shield_regen := 0.0
 var thorns_damage := 0.0
 var deflect_chance := 0.0
-# Drain
 var siphon_pct := 0.0
 var rot_timer := 0.0
 var rot_radius := 0.0
 var rot_damage := 0.0
-# Control
+var has_wither := false
+var wither_timer := 0.0
+var has_frost_pulse := false
 var frost_timer := 0.0
+var has_shatter := false
+var has_dread := false
 var dread_timer := 0.0
-var chill_level := 0
-# Sight
 var crit_chance := 0.0
 var crit_mult := 2.0
-var dodge_chance := 0.0
+var has_mark := false
 var mark_timer := 0.0
-# Summon
+var dodge_chance := 0.0
 var wisp_count := 0
 var wisp_timer := 0.0
 var wisp_speed_mult := 1.0
+var has_hex := false
 var hex_timer := 0.0
 
 # Family deepening (repeatable cards)
 var fam_power := {"blast": 1.0, "ward": 1.0, "drain": 1.0, "control": 1.0, "sight": 1.0, "summon": 1.0}
 var blast_radius_mult := 1.0
 var control_radius_mult := 1.0
+var chill_level := 0
 var cantrip_mult := 1.0
 
 # Temporary boosts
@@ -75,7 +76,7 @@ var boost_rate_t := 0.0
 var boost_speed := 1.0
 var boost_speed_t := 0.0
 var invuln_t := 0.0
-var bonus_shield := 0.0  # Barrier pickup: absorbs damage until broken, no timer
+var bonus_shield := 0.0
 
 # Contact damage
 var contact_tick := 0.5
@@ -132,7 +133,9 @@ func _process(delta: float) -> void:
 		shield_hp = min(shield_max, shield_hp + shield_regen * delta)
 		queue_redraw()
 	_cast_brain(delta)
+	_handle_nova(delta)
 	_handle_rot(delta)
+	_handle_wither(delta)
 	_handle_frost(delta)
 	_handle_dread(delta)
 	_handle_mark(delta)
@@ -141,7 +144,7 @@ func _process(delta: float) -> void:
 	_handle_contact(delta)
 
 
-# --- Input --------------------------------------------------------------------
+# --- Input -------------------------------------------------------------------------
 func _input_vector() -> Vector2:
 	if Sim.enabled:
 		return _sim_bot_vector()
@@ -170,7 +173,7 @@ func _sim_bot_vector() -> Vector2:
 	return away.normalized() if away.length() > 1.0 else Vector2.RIGHT
 
 
-# --- Insight / families (hybrid: T1 auto, T2/T3 as cards) ---------------------
+# --- Insight: surviving a biome awakens its basic attack -----------------------------
 func insight_tier(fam: String) -> int:
 	var t := 0
 	for threshold in Config.INSIGHT_TIERS:
@@ -179,117 +182,84 @@ func insight_tier(fam: String) -> int:
 	return t
 
 
+## Progress display (wheel/HUD): insight depth of the family.
 func family_tier(fam: String) -> int:
-	return int(granted_tier.get(fam, 0))
+	return insight_tier(fam)
 
 
-## The next tier available to pick as a card (insight-unlocked, not yet granted),
-## or 0 if none. T1 auto-awakens, so cards only ever offer T2/T3.
-func next_card_tier(fam: String) -> int:
-	var g: int = int(granted_tier[fam])
-	if g >= 1 and g < 3 and insight_tier(fam) > g:
-		return g + 1
-	return 0
+func is_awakened(fam: String) -> bool:
+	return bool(awakened_fams.get(fam, false))
 
 
 func add_insight(fam: String, amount: float) -> void:
 	if not insight.has(fam):
 		return
 	insight[fam] = float(insight[fam]) + amount
-	# First spell awakens on its own — the world teaching you, loudly.
-	if insight_tier(fam) >= 1 and int(granted_tier[fam]) < 1:
-		_grant_tier(fam, 1, true)
-
-
-func grant_family_tier(fam: String, tier: int) -> void:
-	_grant_tier(fam, tier, false)
-
-
-func _grant_tier(fam: String, tier: int, loud: bool) -> void:
-	granted_tier[fam] = tier
-	RunLog.event("%s tier %d %s" % [Config.FAMILY_NAMES[fam], tier, "AWAKENED" if loud else "(picked as card)"])
-	_apply_tier_effects(fam, tier)
-	if loud:
+	if insight_tier(fam) >= 1 and not awakened_fams[fam]:
+		awakened_fams[fam] = true
+		RunLog.event("%s AWAKENED — basic attack: %s" % [Config.FAMILY_NAMES[fam], Config.BASIC_ATTACKS[fam].name])
 		awakened.emit(fam)
 		Fx.shake(0.4)
-	else:
-		var fname: String = Config.FAMILY_NAMES[fam]
-		Fx.floating_text(global_position + Vector2(0, -30), "%s %s" % [fname, ["I", "II", "III"][mini(tier, 3) - 1]], Config.FAMILY_COLORS[fam])
+		queue_redraw()
+
+
+## Skill cards call this — nothing here is ever granted automatically.
+func unlock_skill(fam: String, key: String) -> void:
+	match key:
+		"nova":
+			has_nova = true
+		"volley":
+			bolt_count += 1
+		"aegis":
+			shield_max = 34.0
+			shield_regen = 4.0
+			shield_hp = shield_max
+		"thorns":
+			thorns_damage = 9.0
+		"deflect":
+			deflect_chance = 0.6
+			shield_max += 24.0
+		"siphon":
+			siphon_pct += 0.10
+		"rot":
+			rot_radius = 100.0
+			rot_damage = 2.2
+		"wither":
+			has_wither = true
+		"pulse":
+			has_frost_pulse = true
+		"shatter":
+			has_shatter = true
+		"dread":
+			has_dread = true
+		"keen":
+			crit_chance += 0.15
+		"mark":
+			has_mark = true
+		"foresight":
+			dodge_chance = 0.25
+		"wisp":
+			wisp_count = maxi(wisp_count, 1)
+		"hex":
+			has_hex = true
+		"legion":
+			wisp_count = 2
+	RunLog.event("skill unlocked: %s/%s" % [fam, key])
 	queue_redraw()
 
 
-func _apply_tier_effects(fam: String, tier: int) -> void:
-	match fam:
-		"blast":
-			match tier:
-				1:
-					explode_radius = 56.0
-				2:
-					nova_radius = 120.0
-					nova_damage = 11.0
-				3:
-					bolt_count += 1
-					nova_radius = 160.0
-					explode_radius = 74.0
-		"ward":
-			match tier:
-				1:
-					shield_max = 30.0
-					shield_regen = 4.0
-				2:
-					thorns_damage = 9.0
-				3:
-					deflect_chance = 0.6
-					shield_max = 58.0
-		"drain":
-			match tier:
-				1:
-					siphon_pct = 0.10
-				2:
-					rot_radius = 100.0
-					rot_damage = 2.2
-				3:
-					siphon_pct = 0.16
-		"control":
-			match tier:
-				1:
-					frost_timer = 0.5  # frost pulse comes alive
-				2:
-					pass  # Shatter: slowed enemies take bonus damage (handled in deal)
-				3:
-					dread_timer = 1.0  # fear pulse comes alive
-		"sight":
-			match tier:
-				1:
-					crit_chance += 0.15
-				2:
-					mark_timer = 1.0  # marking comes alive
-				3:
-					dodge_chance = 0.25
-		"summon":
-			match tier:
-				1:
-					wisp_count = 1
-				2:
-					hex_timer = 1.0  # hexfields come alive
-				3:
-					wisp_count = 2
-
-
-## Central damage funnel: global mults, siphon, use-deepens Insight trickle.
+## Central damage funnel: mults, crits, Shatter, siphon, use-deepens insight.
 func deal(e, base: float, dtype: String, fam: String) -> void:
 	if e == null or not is_instance_valid(e):
 		return
-	# Shatter (Control II): slowed enemies take bonus damage from everything.
-	if e.slow_t > 0.0 and family_tier("control") >= 2:
+	if e.slow_t > 0.0 and has_shatter:
 		base *= 1.45
-	# Crits (Sight): strike true — precise damage, which flyers can't shrug.
 	var final_dtype := dtype
 	if crit_chance > 0.0 and randf() < crit_chance:
 		base *= crit_mult
 		final_dtype = "precise"
 	var applied: float = e.take_damage(base * damage_mult * boost_dmg, final_dtype)
-	RunLog.bump("damage_by_family", fam if fam != "" else "cantrip", applied)
+	RunLog.bump("damage_by_family", fam if fam != "" else "force", applied)
 	RunLog.bump("damage_by_type", dtype, applied)
 	if siphon_pct > 0.0 and applied > 0.0:
 		hp = min(max_hp, hp + applied * siphon_pct)
@@ -298,76 +268,116 @@ func deal(e, base: float, dtype: String, fam: String) -> void:
 		add_insight(fam, 0.008)
 
 
-# --- Caster brain: cast whatever deals the most damage RIGHT NOW ---------------
-## Expected damage of one hit on e, with resist/vuln/out-of-biome and Shatter.
+# --- The caster brain: ONE basic attack per cycle, the mathematically best one -------
 func _est(e, base: float, dtype: String) -> float:
 	var v: float = base * e.damage_mult_for(dtype)
-	if e.slow_t > 0.0 and family_tier("control") >= 2:
+	if e.slow_t > 0.0 and has_shatter:
 		v *= 1.45
 	return v
 
 
-func _cast_brain(delta: float) -> void:
-	bolt_cd -= delta
-	nova_cd -= delta
-	wither_cd -= delta
+func _available_basics() -> Array:
+	var out: Array = ["force"]
+	for fam in awakened_fams:
+		if awakened_fams[fam]:
+			out.append(fam)
+	return out
 
-	var best_score := 0.0
+
+func _cast_brain(delta: float) -> void:
+	cast_cd -= delta
+	if cast_cd > 0.0:
+		return
+
 	var best := ""
+	var best_score := 0.0
 	var best_target = null
 
-	# Bolt: primary hit (per bolt) + Fireburst splash around the target.
-	if bolt_cd <= 0.0:
-		var t := _nearest_enemy_in(Config.CANTRIP.range)
-		if t != null:
-			var per_bolt: float = Config.CANTRIP.damage * cantrip_mult
-			var dmg: float = _est(t, per_bolt, "arcane") * bolt_count
-			if explode_radius > 0.0:
+	for key in _available_basics():
+		var atk: Dictionary = Config.BASIC_ATTACKS[key]
+		var dmg_base: float = atk.damage * (cantrip_mult if key == "force" else fam_power.get(key, 1.0))
+		if atk.has("arc"):
+			# melee cone: sum expected damage over everyone in reach
+			var aim_t := _nearest_enemy_in(atk.range)
+			if aim_t == null:
+				continue
+			var aim: Vector2 = (aim_t.global_position - global_position).normalized()
+			var half: float = deg_to_rad(atk.arc) * 0.5
+			var total := 0.0
+			for e in get_tree().get_nodes_in_group("enemies"):
+				var to_e: Vector2 = e.global_position - global_position
+				if to_e.length() <= atk.range and absf(aim.angle_to(to_e.normalized())) <= half:
+					total += _est(e, dmg_base, atk.dtype)
+			if total > best_score:
+				best_score = total
+				best = key
+				best_target = aim_t
+		else:
+			var t := _nearest_enemy_in(atk.range)
+			if t == null:
+				continue
+			var dmg: float = _est(t, dmg_base, atk.dtype) * bolt_count
+			if atk.has("explode"):
+				var er: float = atk.explode * blast_radius_mult
 				for e2 in get_tree().get_nodes_in_group("enemies"):
-					if e2 != t and t.global_position.distance_to(e2.global_position) <= explode_radius:
-						dmg += _est(e2, per_bolt * 0.6 * fam_power.blast, "arcane")
+					if e2 != t and t.global_position.distance_to(e2.global_position) <= er:
+						dmg += _est(e2, dmg_base * 0.6, atk.dtype)
 			if dmg > best_score:
 				best_score = dmg
-				best = "bolt"
+				best = key
 				best_target = t
 
-	# Nova: sum of expected damage over everything in the ring.
-	if nova_radius > 0.0 and nova_cd <= 0.0:
-		var total := 0.0
-		for e in get_tree().get_nodes_in_group("enemies"):
-			if global_position.distance_to(e.global_position) <= nova_radius:
-				total += _est(e, nova_damage * fam_power.blast, "arcane")
-		if total > best_score:
-			best_score = total
-			best = "nova"
+	if best == "":
+		return  # nothing in range; cooldowns keep ticking, retry next frame
 
-	# Wither: direct necrotic hit + the value of the vulnerability it applies.
-	if int(granted_tier.drain) >= 3 and wither_cd <= 0.0:
-		var tough = null
-		var tough_score := 0.0
-		for e in get_tree().get_nodes_in_group("enemies"):
-			if global_position.distance_to(e.global_position) <= 300.0 and e.hp > 14.0:
-				var s: float = _est(e, 14.0, "necrotic") + minf(e.hp, 24.0) * 0.5
-				if s > tough_score:
-					tough_score = s
-					tough = e
-		if tough != null and tough_score > best_score:
-			best_score = tough_score
-			best = "wither"
-			best_target = tough
+	var chosen: Dictionary = Config.BASIC_ATTACKS[best]
+	_cast_basic(best, chosen, best_target)
+	RunLog.bump("basic_casts", chosen.name)
+	cast_cd = chosen.interval * attack_speed_mult * boost_rate
 
-	match best:
-		"bolt":
-			_cast_bolt(best_target)
-			bolt_cd = Config.CANTRIP.interval * attack_speed_mult * boost_rate
-		"nova":
-			_cast_nova()
-			nova_cd = 3.2 * attack_speed_mult
-		"wither":
-			_cast_wither(best_target)
-			wither_cd = 4.0
-		_:
-			pass  # nothing worth casting; cooldowns keep ticking, brain re-runs next frame
+
+func _cast_basic(key: String, atk: Dictionary, target) -> void:
+	var fam := "" if key == "force" else key
+	var dmg_base: float = atk.damage * (cantrip_mult if key == "force" else fam_power.get(key, 1.0))
+	if atk.has("arc"):
+		var aim: Vector2 = (target.global_position - global_position).normalized()
+		var half: float = deg_to_rad(atk.arc) * 0.5
+		for e in get_tree().get_nodes_in_group("enemies"):
+			var to_e: Vector2 = e.global_position - global_position
+			if to_e.length() <= atk.range and absf(aim.angle_to(to_e.normalized())) <= half:
+				deal(e, dmg_base, atk.dtype, fam)
+				if atk.has("knockback"):
+					e.global_position += to_e.normalized() * atk.knockback
+		var ring := RingFx.new()
+		ring.max_radius = atk.range
+		ring.color = Config.FAMILY_COLORS.ward
+		ring.global_position = global_position
+		projectile_parent.add_child(ring)
+		return
+
+	var base_dir: Vector2 = (target.global_position - global_position).normalized()
+	var spread := deg_to_rad(12.0)
+	for i in bolt_count:
+		var offset := 0.0
+		if bolt_count > 1:
+			offset = spread * (i - (bolt_count - 1) / 2.0)
+		var p := Projectile.new()
+		p.damage = dmg_base * damage_mult * boost_dmg
+		p.speed = atk.speed
+		p.life = Config.BOLT_LIFE
+		p.direction = base_dir.rotated(offset)
+		p.dtype = atk.dtype
+		p.fam = fam
+		if atk.has("explode"):
+			p.explode_radius = atk.explode * blast_radius_mult
+			p.explode_factor = 0.6
+		if atk.has("slow"):
+			p.slow_factor = maxf(0.25, atk.slow - 0.05 * chill_level)
+		if key != "force":
+			p.tint = Config.FAMILY_COLORS[key]
+		p.source = self
+		p.global_position = global_position
+		projectile_parent.add_child(p)
 
 
 func _nearest_enemy_in(reach: float) -> Node2D:
@@ -381,45 +391,28 @@ func _nearest_enemy_in(reach: float) -> Node2D:
 	return best
 
 
-func _cast_bolt(target) -> void:
-	var base_dir: Vector2 = (target.global_position - global_position).normalized()
-	var spread := deg_to_rad(12.0)
-	for i in bolt_count:
-		var offset := 0.0
-		if bolt_count > 1:
-			offset = spread * (i - (bolt_count - 1) / 2.0)
-		var p := Projectile.new()
-		p.damage = Config.CANTRIP.damage * cantrip_mult * damage_mult * boost_dmg
-		p.speed = Config.CANTRIP.speed
-		p.life = Config.CANTRIP.life
-		p.direction = base_dir.rotated(offset)
-		p.explode_radius = explode_radius
-		p.explode_factor = 0.6 * fam_power.blast
-		p.source = self
-		p.global_position = global_position
-		projectile_parent.add_child(p)
-
-
-func _cast_nova() -> void:
+# --- Skills (auto-firing once unlocked via cards) --------------------------------------
+func _handle_nova(delta: float) -> void:
+	if not has_nova:
+		return
+	nova_timer -= delta
+	if nova_timer > 0.0:
+		return
+	nova_timer = 3.2 * attack_speed_mult
+	var nova_radius := 130.0 * blast_radius_mult
+	var any := false
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if global_position.distance_to(e.global_position) <= nova_radius:
-			deal(e, nova_damage * fam_power.blast, "arcane", "blast")
-	var ring := RingFx.new()
-	ring.max_radius = nova_radius
-	ring.color = Config.FAMILY_COLORS.blast
-	ring.global_position = global_position
-	projectile_parent.add_child(ring)
+			deal(e, 11.0 * fam_power.blast, "arcane", "blast")
+			any = true
+	if any:
+		var ring := RingFx.new()
+		ring.max_radius = nova_radius
+		ring.color = Config.FAMILY_COLORS.blast
+		ring.global_position = global_position
+		projectile_parent.add_child(ring)
 
 
-func _cast_wither(target) -> void:
-	if target == null or not is_instance_valid(target):
-		return
-	target.apply_vuln(1.5, 4.0)
-	deal(target, 14.0, "necrotic", "drain")
-	Fx.floating_text(target.global_position + Vector2(0, -18), "withered", Config.FAMILY_COLORS.drain)
-
-
-# --- Drain: Rot aura (ambient) ------------------------------------------------
 func _handle_rot(delta: float) -> void:
 	if rot_radius <= 0.0:
 		return
@@ -429,36 +422,54 @@ func _handle_rot(delta: float) -> void:
 	rot_timer = 0.5
 	for e in get_tree().get_nodes_in_group("enemies"):
 		if global_position.distance_to(e.global_position) <= rot_radius:
-			deal(e, rot_damage, "necrotic", "drain")
-	queue_redraw()
+			deal(e, rot_damage * fam_power.drain, "necrotic", "drain")
 
 
-# --- Control: Frost Pulse (T1) + Dread (T3) ------------------------------------
+func _handle_wither(delta: float) -> void:
+	if not has_wither:
+		return
+	wither_timer -= delta
+	if wither_timer > 0.0:
+		return
+	wither_timer = 4.0
+	var best: Node2D = null
+	var best_hp := 14.0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		if global_position.distance_to(e.global_position) <= 300.0 and e.hp > best_hp:
+			best_hp = e.hp
+			best = e
+	if best == null:
+		return
+	best.apply_vuln(1.5, 4.0)
+	deal(best, 14.0 * fam_power.drain, "necrotic", "drain")
+	Fx.floating_text(best.global_position + Vector2(0, -18), "withered", Config.FAMILY_COLORS.drain)
+
+
 func _handle_frost(delta: float) -> void:
-	if family_tier("control") < 1:
+	if not has_frost_pulse:
 		return
 	frost_timer -= delta
 	if frost_timer > 0.0:
 		return
 	frost_timer = 2.6 * attack_speed_mult
-	var radius := 135.0 * control_radius_mult
+	var pulse_radius := 135.0 * control_radius_mult
 	var slow_factor := maxf(0.25, 0.55 - 0.05 * chill_level)
 	var any := false
 	for e in get_tree().get_nodes_in_group("enemies"):
-		if global_position.distance_to(e.global_position) <= radius:
+		if global_position.distance_to(e.global_position) <= pulse_radius:
 			e.apply_slow(slow_factor, 2.0)
 			deal(e, 3.0 * fam_power.control, "frost", "control")
 			any = true
 	if any:
 		var ring := RingFx.new()
-		ring.max_radius = radius
+		ring.max_radius = pulse_radius
 		ring.color = Config.FAMILY_COLORS.control
 		ring.global_position = global_position
 		projectile_parent.add_child(ring)
 
 
 func _handle_dread(delta: float) -> void:
-	if family_tier("control") < 3:
+	if not has_dread:
 		return
 	dread_timer -= delta
 	if dread_timer > 0.0:
@@ -469,9 +480,8 @@ func _handle_dread(delta: float) -> void:
 			e.apply_fear(1.6)
 
 
-# --- Sight: Mark (T2) ------------------------------------------------------------
 func _handle_mark(delta: float) -> void:
-	if family_tier("sight") < 2:
+	if not has_mark:
 		return
 	mark_timer -= delta
 	if mark_timer > 0.0:
@@ -488,7 +498,6 @@ func _handle_mark(delta: float) -> void:
 		Fx.floating_text(tough.global_position + Vector2(0, -18), "marked", Config.FAMILY_COLORS.sight)
 
 
-# --- Summon: Wisps (T1/T3) + Hexfield (T2) ---------------------------------------
 func _handle_wisp(delta: float) -> void:
 	if wisp_count <= 0:
 		return
@@ -497,7 +506,7 @@ func _handle_wisp(delta: float) -> void:
 		return
 	wisp_timer = 1.0 * wisp_speed_mult * attack_speed_mult
 	for i in wisp_count:
-		var target := _nearest_enemy_in(520.0)
+		var target := _nearest_enemy_in(420.0)
 		if target == null:
 			return
 		var off := Vector2(cos(TAU * i / maxi(wisp_count, 1)), sin(TAU * i / maxi(wisp_count, 1))) * 26.0
@@ -516,7 +525,7 @@ func _handle_wisp(delta: float) -> void:
 
 
 func _handle_hex(delta: float) -> void:
-	if family_tier("summon") < 2:
+	if not has_hex:
 		return
 	hex_timer -= delta
 	if hex_timer > 0.0:
@@ -532,7 +541,7 @@ func _handle_hex(delta: float) -> void:
 	projectile_parent.add_child(zone)
 
 
-# --- Ward: deflect + contact/thorns -------------------------------------------
+# --- Ward reactions ------------------------------------------------------------------
 func try_deflect_shot(pos: Vector2) -> bool:
 	if deflect_chance > 0.0 and randf() < deflect_chance:
 		Fx.death_pop(pos, Config.FAMILY_COLORS.ward)
@@ -556,7 +565,7 @@ func _handle_contact(delta: float) -> void:
 			for id in _overlapping.keys():
 				var e = _overlapping[id]
 				if is_instance_valid(e):
-					deal(e, thorns_damage, "reflect", "ward")
+					deal(e, thorns_damage * fam_power.ward, "reflect", "ward")
 		contact_timer = contact_tick
 
 
@@ -571,7 +580,6 @@ func take_damage(amount: float) -> void:
 		Sim.damage_taken += max(0.0, amount - armor)
 		return
 	var remaining := maxf(0.0, amount - armor)
-	# Barrier (Shield pickup) absorbs first — it's expendable, the Aegis regens.
 	if bonus_shield > 0.0 and remaining > 0.0:
 		var soaked: float = min(bonus_shield, remaining)
 		bonus_shield -= soaked
@@ -619,7 +627,7 @@ func _on_hurt_area_exited(area: Area2D) -> void:
 		_overlapping.erase(e.get_instance_id())
 
 
-# --- Boosts -------------------------------------------------------------------
+# --- Boosts -----------------------------------------------------------------------------
 func active_boosts() -> Array:
 	var out: Array = []
 	if boost_dmg_t > 0.0:
@@ -667,7 +675,7 @@ func add_boost(kind: String) -> void:
 	create_tween().tween_property(self, "modulate", Color.WHITE, 0.25)
 
 
-# --- Vital cards --------------------------------------------------------------
+# --- Vital + deepening cards --------------------------------------------------------------
 func apply_upgrade(id: String) -> void:
 	match id:
 		"maxhp":
@@ -689,21 +697,18 @@ func apply_upgrade(id: String) -> void:
 			cantrip_mult *= 1.20
 		"heal":
 			hp = min(max_hp, hp + 30.0)
-		# --- family deepening cards (offered once the family is awakened) ---
 		"blast_hotter":
 			fam_power.blast *= 1.25
 		"blast_wider":
 			blast_radius_mult *= 1.20
-			_reapply_blast_radii()
 		"ward_denser":
 			shield_max += 12.0
 			shield_regen += 1.5
 		"ward_sharper":
-			thorns_damage *= 1.4 if thorns_damage > 0.0 else 1.0
-			thorns_damage = maxf(thorns_damage, 4.0)  # gives pre-T2 wards a base sting
+			thorns_damage = maxf(thorns_damage * 1.4, 4.0)
+			fam_power.ward *= 1.15
 		"drain_deeper":
 			fam_power.drain *= 1.25
-			rot_damage *= 1.25
 		"drain_thicker":
 			siphon_pct += 0.03
 		"control_chill":
@@ -719,14 +724,6 @@ func apply_upgrade(id: String) -> void:
 			fam_power.summon *= 1.30
 		"summon_eager":
 			wisp_speed_mult *= 0.85
-
-
-func _reapply_blast_radii() -> void:
-	var t := family_tier("blast")
-	if t >= 1:
-		explode_radius = (56.0 if t < 3 else 74.0) * blast_radius_mult
-	if t >= 2:
-		nova_radius = (120.0 if t < 3 else 160.0) * blast_radius_mult
 
 
 func _draw() -> void:

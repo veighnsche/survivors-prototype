@@ -17,13 +17,15 @@ var boss_lock_biome := ""       # while the boss lives, the player is sealed in 
 var _last_inside_pos := Vector2.ZERO
 var _seal_warn_cd := 0.0
 
-const FAMILY_SPELLS := {
-	"blast":   {2: ["Nova", "Shockwave pulse when swarmed"], 3: ["Volley", "Extra bolt + bigger Nova"]},
-	"ward":    {2: ["Thorns", "Attackers take reflected damage"], 3: ["Deflect", "Bounce ranged shots back"]},
-	"drain":   {2: ["Rot", "A necrotic damage-over-time aura"], 3: ["Wither", "Curse & melt the toughest foe"]},
-	"control": {2: ["Shatter", "Slowed enemies take bonus damage"], 3: ["Dread", "Periodic fear — they flee you"]},
-	"sight":   {2: ["Mark", "Auto-mark the toughest foe: +damage"], 3: ["Foresight", "25% chance to dodge any hit"]},
-	"summon":  {2: ["Hexfield", "Conjured zones that grind crowds"], 3: ["Legion", "A second wisp joins you"]},
+# Skill cards per family: [key, name, desc, insight-tier gate]. Basic attacks
+# are NOT here — those awaken by surviving in biomes. Skills are always PICKED.
+const FAMILY_SKILLS := {
+	"blast":   [["nova", "Nova", "Auto shockwave pulse", 1], ["volley", "Volley", "+1 bolt on basic attacks", 2]],
+	"ward":    [["aegis", "Aegis", "Regenerating shield", 1], ["thorns", "Thorns", "Reflect contact damage", 2], ["deflect", "Deflect", "Block ranged shots", 3]],
+	"drain":   [["siphon", "Siphon", "+10% lifesteal", 1], ["rot", "Rot", "Necrotic aura", 2], ["wither", "Wither", "Auto-curse the toughest foe", 3]],
+	"control": [["pulse", "Frost Pulse", "Periodic slowing pulse", 1], ["shatter", "Shatter", "Slowed foes take +45%", 2], ["dread", "Dread", "Periodic fear", 3]],
+	"sight":   [["keen", "Keen Eye", "+15% crit chance", 1], ["mark", "Mark", "Auto-mark tough foes", 2], ["foresight", "Foresight", "25% dodge", 3]],
+	"summon":  [["wisp", "Wisp", "A familiar fights with you", 1], ["hex", "Hexfield", "Conjured grinding zones", 2], ["legion", "Legion", "A second wisp", 3]],
 }
 
 # Repeatable deepening cards per family — offered once that family is awakened.
@@ -160,10 +162,10 @@ func _ready() -> void:
 
 	_apply_meta()
 	if Sim.enabled and Sim.family != "":
-		# grant the family under test fully (all tiers) for build-viability runs
+		# grant the family under test fully (awakened + all skills) for build runs
 		player.add_insight(Sim.family, float(Config.INSIGHT_TIERS[Config.INSIGHT_TIERS.size() - 1]))
-		player.grant_family_tier(Sim.family, 2)
-		player.grant_family_tier(Sim.family, 3)
+		for s in FAMILY_SKILLS[Sim.family]:
+			player.unlock_skill(Sim.family, s[0])
 	run_started = true
 
 
@@ -235,16 +237,16 @@ func _process(delta: float) -> void:
 
 
 func _on_family_awakened(fam: String) -> void:
-	hud.show_banner("%s awakened" % Config.FAMILY_NAMES[fam], Config.FAMILY_COLORS[fam])
+	hud.show_banner("%s awakened — %s" % [Config.FAMILY_NAMES[fam], Config.BASIC_ATTACKS[fam].name], Config.FAMILY_COLORS[fam])
 
 
 func _family_summary() -> String:
 	var parts: Array = []
 	for fam in ["blast", "ward", "drain", "control", "sight", "summon"]:
-		var t: int = player.family_tier(fam)
-		if t > 0:
-			parts.append("%s %s" % [Config.FAMILY_NAMES[fam], ["I", "II", "III"][mini(t, 3) - 1]])
-	return " · ".join(parts) if not parts.is_empty() else "Unwritten"
+		if player.is_awakened(fam):
+			var t: int = player.insight_tier(fam)
+			parts.append("%s %s" % [Config.BASIC_ATTACKS[fam].name, ["I", "II", "III"][mini(t, 3) - 1]])
+	return " · ".join(parts) if not parts.is_empty() else "Force Bolt only"
 
 
 # --- Spawn timeline (intensity over time; type comes from the biome) -----------
@@ -500,24 +502,30 @@ func _log_offer(cards: Array) -> void:
 
 
 func _draw_cards(n: int) -> Array:
-	# Family spell cards (unlocked by insight) are GUARANTEED offers — they're
-	# the point of the game, never lottery tickets. Up to n-1 so a Vital option
+	# Skill cards (gated by awakened family + insight depth) are GUARANTEED
+	# offers — the affinity choice is the point. Up to n-1 so a Vital option
 	# always remains.
 	var chosen: Array = []
-	for fam in FAMILY_SPELLS:
-		var t: int = player.next_card_tier(fam)
-		if t >= 2 and FAMILY_SPELLS[fam].has(t) and not banished.has("fam:%s:%d" % [fam, t]):
-			var meta: Array = FAMILY_SPELLS[fam][t]
-			chosen.append({"id": "fam:%s:%d" % [fam, t], "name": "%s — %s" % [Config.FAMILY_NAMES[fam], meta[0]],
-				"desc": meta[1], "rarity": "rare", "locks": [], "family": fam, "tier": t})
-			if chosen.size() >= n - 1:
-				break
+	for fam in FAMILY_SKILLS:
+		if not player.is_awakened(fam):
+			continue
+		for s in FAMILY_SKILLS[fam]:
+			var sid := "skill:%s:%s" % [fam, s[0]]
+			if banished.has(sid) or int(upgrade_levels.get(sid, 0)) > 0:
+				continue
+			if player.insight_tier(fam) < int(s[3]):
+				continue
+			chosen.append({"id": sid, "name": "%s — %s" % [Config.FAMILY_NAMES[fam], s[1]],
+				"desc": s[2], "rarity": "rare", "locks": []})
+			break  # one skill offer per family at a time
+		if chosen.size() >= n - 1:
+			break
 
 	var elig: Array = []
 	# Deepening cards for every AWAKENED family — the affinity system IS the
 	# level-up system; the pool grows with your build.
 	for fam in FAMILY_MINORS:
-		if player.family_tier(fam) < 1:
+		if not player.is_awakened(fam):
 			continue
 		for m in FAMILY_MINORS[fam]:
 			var mid: String = m[0]
@@ -562,9 +570,10 @@ func _def(id: String):
 func _apply_choice(id: String) -> void:
 	RunLog.event("card picked: %s" % id)
 	RunLog.bump("cards_picked", id)
-	if id.begins_with("fam:"):
+	if id.begins_with("skill:"):
 		var parts := id.split(":")
-		player.grant_family_tier(parts[1], int(parts[2]))
+		upgrade_levels[id] = 1
+		player.unlock_skill(parts[1], parts[2])
 		return
 	if id == "heal":
 		player.apply_upgrade("heal")
@@ -578,11 +587,11 @@ func _apply_choice(id: String) -> void:
 
 
 func grant_random_upgrade() -> String:
-	# Chests auto-grant a VITAL upgrade only — family tiers are always the
+	# Chests auto-grant a VITAL/deepening upgrade only — skills are always the
 	# player's own choice at the card screen.
 	var cards := _draw_cards(5)
 	for c in cards:
-		if not String(c.id).begins_with("fam:") and c.get("locks", []).is_empty():
+		if not String(c.id).begins_with("skill:") and c.get("locks", []).is_empty():
 			_apply_choice(c.id)
 			return c.name
 	return ""

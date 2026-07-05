@@ -5,8 +5,20 @@ extends Node
 # --- Display ----------------------------------------------------------------
 var CAMERA_ZOOM := 1.6
 
-# --- The cantrip (tabula rasa starting attack) -------------------------------
-var CANTRIP := {"damage": 4.5, "interval": 0.45, "range": 360.0, "speed": 520.0, "life": 0.75}
+# --- Basic attacks: ONE per family, awakened by surviving in its biome. -------
+# The caster fires exactly one basic attack per cast cycle — whichever the
+# brain computes will deal the most damage right now. "force" is the
+# tabula-rasa starter every run begins with.
+var BASIC_ATTACKS := {
+	"force":   {"name": "Force Bolt",   "interval": 0.45, "damage": 4.5, "range": 360.0, "speed": 520.0, "dtype": "arcane"},
+	"blast":   {"name": "Firebolt",     "interval": 0.60, "damage": 6.0, "range": 380.0, "speed": 540.0, "dtype": "arcane", "explode": 56.0},
+	"ward":    {"name": "Bulwark Slam", "interval": 0.70, "damage": 9.0, "range": 125.0, "arc": 140.0, "dtype": "reflect", "knockback": 46.0},
+	"drain":   {"name": "Leech Bolt",   "interval": 0.60, "damage": 6.5, "range": 330.0, "speed": 460.0, "dtype": "necrotic"},
+	"control": {"name": "Frost Lance",  "interval": 0.60, "damage": 5.0, "range": 360.0, "speed": 500.0, "dtype": "frost", "slow": 0.55},
+	"sight":   {"name": "True Bolt",    "interval": 0.65, "damage": 5.5, "range": 480.0, "speed": 640.0, "dtype": "precise"},
+	"summon":  {"name": "Spirit Dart",  "interval": 0.40, "damage": 3.5, "range": 340.0, "speed": 480.0, "dtype": "physical"},
+}
+var BOLT_LIFE := 0.75
 
 # --- Families (the six corners; v1 implements blast/ward/drain) ---------------
 var FAMILY_COLORS := {
