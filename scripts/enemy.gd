@@ -15,6 +15,7 @@ var damage := 5.0
 var radius := 10.0
 var color := Color(0.86, 0.36, 0.36)
 var is_boss := false
+var guard := false   # entrance guard: holds its post, engages only up close
 var xp_tier := "small"
 var resists: Dictionary = {}
 
@@ -71,7 +72,7 @@ func setup(arch: String, biome_id: String, tgt: Node2D, hp_scale: float) -> void
 	is_boss = (arch == "boss")
 	target = tgt
 	var bc: Color = Config.BIOMES[biome_id].color if Config.BIOMES.has(biome_id) else Color(0.9, 0.2, 0.2)
-	color = bc.darkened(0.15) if not is_boss else Color(0.92, 0.16, 0.22)
+	color = bc.darkened(0.15) if not is_boss else bc.lightened(0.15)  # the Warden wears its biome's color
 	if stats.has("shot_interval"):
 		_shot_timer = randf_range(0.5, stats.shot_interval)
 		_strafe_dir = 1.0 if randf() < 0.5 else -1.0
@@ -151,6 +152,11 @@ func _behavior_dir(delta: float) -> Vector2:
 	var to_p := target.global_position - global_position
 	if feared_t > 0.0:
 		return -to_p.normalized()  # Dread: flee
+	# Entrance guards hold their post; they only engage up close.
+	if guard and to_p.length() > Config.GUARD_AGGRO:
+		if global_position.distance_to(home_pos) > 40.0:
+			return (home_pos - global_position).normalized()
+		return Vector2.ZERO
 	# Outside home turf: disengage and head home (unless the player is right on
 	# top of us — then fight back). Prevents dragging enemies out to farm them.
 	if _outside and to_p.length() > Config.SELF_DEFENSE_RADIUS:

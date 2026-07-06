@@ -136,7 +136,14 @@ var CONTACT_TICK := 0.5
 var SPAWN_RADIUS := 800.0
 var DESPAWN_RADIUS := 1500.0
 var MAX_ENEMIES := 450
-var BOSS_TIME := 150.0
+
+# --- Wardens: every biome seals you in until you kill its Warden ------------------
+var WARDEN_AFTER := 75.0        # seconds inside a sealed biome before its Warden comes
+var WARDEN_HP := 260.0          # first Warden's hp; later ones grow
+var WARDEN_DMG := 24.0
+var WARDEN_CLEAR_BONUS := 0.8   # +80% Warden hp per biome already cleared
+var GUARDS_PER_GATE := 2        # entrance guards posted at border gates
+var GUARD_AGGRO := 340.0        # guards engage within this range, else hold their post
 
 # --- Gems / XP (character level = the Vital floor) -----------------------------
 var GEM_VALUES := {"small": 1, "medium": 5, "large": 25}

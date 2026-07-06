@@ -13,7 +13,10 @@ var card_screen: CardScreen
 var biome_map: BiomeMap
 var bg: BackgroundGrid
 var _cur_biome := ""
-var boss_lock_biome := ""       # while the boss lives, the player is sealed in this biome
+var boss_lock_biome := ""       # the biome the player is currently sealed inside
+var cleared_biomes: Dictionary = {}  # biome -> true once its Warden falls
+var warden_timer := -1.0        # counts down to the Warden's arrival
+var warden_alive := false
 var _last_inside_pos := Vector2.ZERO
 var _seal_warn_cd := 0.0
 
@@ -46,7 +49,6 @@ var kills := 0
 var spawn_accum := 0.0
 var cleanup_timer := 0.0
 var gem_merge_timer := 0.0
-var boss_spawned := false
 var game_over := false
 
 # Progression (Vital / character level)
@@ -95,6 +97,7 @@ func _ready() -> void:
 	borders.player = player
 	borders.biome_map = biome_map
 	borders.world_seed = map_seed
+	borders.game = self
 	add_child(borders)
 
 	var loot := LootField.new()
@@ -234,8 +237,23 @@ func _process(delta: float) -> void:
 	player.current_biome = biome  # the brain leans toward the local biome's attack
 	if biome != _cur_biome:
 		_cur_biome = biome
-		hud.show_banner("Entering %s" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)
 		RunLog.event("entered %s (lvl %d, hp %.0f)" % [Config.BIOMES[biome].name, level, player.hp])
+		if not cleared_biomes.has(biome):
+			# an unconquered biome seals behind you until its Warden falls
+			boss_lock_biome = biome
+			_last_inside_pos = player.global_position
+			warden_timer = Config.WARDEN_AFTER
+			warden_alive = false
+			hud.show_banner("Sealed in %s" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)
+			RunLog.event("sealed in %s — Warden in %.0fs" % [Config.BIOMES[biome].name, Config.WARDEN_AFTER])
+		else:
+			hud.show_banner("Entering %s (cleared)" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)
+
+	# The Warden approaches while you're sealed.
+	if warden_timer > 0.0 and boss_lock_biome != "":
+		warden_timer -= delta
+		if warden_timer <= 0.0 and not warden_alive:
+			_spawn_warden()
 	RunLog.t = elapsed
 	RunLog.bump("time_in_biome_sec", biome, delta)
 	RunLog.tick_snapshot(delta, self)
@@ -281,11 +299,6 @@ func _update_spawns(delta: float) -> void:
 				break
 			_spawn_enemy_at_ring()
 
-	if not boss_spawned and elapsed >= Config.BOSS_TIME:
-		boss_spawned = true
-		RunLog.event("BOSS spawned")
-		_spawn_boss()
-
 
 func _hp_scale() -> float:
 	return 1.0 + (elapsed / 60.0) * Config.HP_RAMP_PER_MIN
@@ -293,6 +306,15 @@ func _hp_scale() -> float:
 
 func _spawn_enemy_at_ring() -> void:
 	var pos := player.global_position + _ring_point()
+	# While sealed, only the sealed biome spawns — no foreign mobs piling up at
+	# the walls (gates have their standing guards instead).
+	if boss_lock_biome != "":
+		var tries := 6
+		while biome_map.biome_at(pos) != boss_lock_biome and tries > 0:
+			pos = player.global_position + _ring_point()
+			tries -= 1
+		if biome_map.biome_at(pos) != boss_lock_biome:
+			return
 	var biome := biome_map.biome_at(pos)
 	var e := Enemy.new()
 	e.setup(_pick_arch(biome), biome, player, _hp_scale())
@@ -316,23 +338,24 @@ func _pick_arch(biome: String) -> String:
 	return roster[0].arch
 
 
-func _spawn_boss() -> void:
-	# The boss claims the biome the player is in and SEALS its borders.
-	var biome := biome_map.biome_at(player.global_position)
+func _spawn_warden() -> void:
+	warden_alive = true
+	var biome := boss_lock_biome
 	var pos := player.global_position + _ring_point()
-	for i in 12:  # try to spawn it inside the sealed biome
+	for i in 12:  # spawn it inside the sealed biome
 		if biome_map.biome_at(pos) == biome:
 			break
 		pos = player.global_position + _ring_point()
+	# Wardens grow with every biome you've already conquered.
+	var target_hp: float = Config.WARDEN_HP * (1.0 + Config.WARDEN_CLEAR_BONUS * cleared_biomes.size()) * _hp_scale()
 	var e := Enemy.new()
-	e.setup("boss", biome, player, 1.0)
+	e.setup("boss", biome, player, target_hp / float(Config.ARCHETYPES.boss.hp))
+	e.damage = Config.WARDEN_DMG
 	e.global_position = pos
 	e.died.connect(_on_enemy_died.bind(e))
 	enemies_root.add_child(e)
-	boss_lock_biome = biome
-	_last_inside_pos = player.global_position
-	hud.show_banner("The Reaper seals %s" % Config.BIOMES[biome].name, Color(0.92, 0.16, 0.22))
-	RunLog.event("boss sealed %s" % Config.BIOMES[biome].name)
+	hud.show_banner("The Warden of %s awakens" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)
+	RunLog.event("WARDEN spawned (%s, hp %.0f)" % [biome, target_hp])
 
 
 func _ring_point() -> Vector2:
@@ -368,18 +391,24 @@ func _on_enemy_died(e) -> void:
 
 	var fam: String = Config.BIOMES[e.biome].family
 	if e.is_boss:
-		RunLog.event("BOSS killed (lvl %d, hp %.0f)" % [level, player.hp])
+		RunLog.event("WARDEN of %s slain (lvl %d, hp %.0f)" % [e.biome, level, player.hp])
 		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
-		if boss_lock_biome != "":
+		cleared_biomes[e.biome] = true
+		warden_alive = false
+		if boss_lock_biome == e.biome:
 			boss_lock_biome = ""
-			hud.show_banner("The seal breaks", Color(0.95, 0.9, 0.7))
-			RunLog.event("boss seal broken")
+		hud.show_banner("%s is conquered — the seal breaks" % Config.BIOMES[e.biome].name, Color(0.95, 0.9, 0.7))
 		for i in 5:
 			var off := Vector2(randf_range(-40.0, 40.0), randf_range(-40.0, 40.0))
 			_spawn_gem(e.global_position + off, "large", fam)
 		for i in 6:
 			var goff := Vector2(randf_range(-50.0, 50.0), randf_range(-50.0, 50.0))
 			_spawn_gold(e.global_position + goff, int(ceil(Config.GOLD_BOSS / 6.0)))
+		var c := Chest.new()
+		c.player = player
+		c.game = self
+		c.global_position = e.global_position + Vector2(0, 50)
+		pickups_root.add_child(c)
 	else:
 		if e._outside:
 			# strays reward less: reduced gem, no gold

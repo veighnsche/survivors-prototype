@@ -12,8 +12,10 @@ const GATE := 420.0  # coarse gate cells; a "gap" opens the whole gate cell
 var player: Node2D
 var biome_map: BiomeMap
 var world_seed := 0
+var game  # for posting entrance guards
 
-var _active: Dictionary = {}  # Vector2i tile -> ObstacleBody or null
+var _active: Dictionary = {}   # Vector2i tile -> WallBody or null
+var _guarded: Dictionary = {}  # gate cell -> true once its guards were posted
 var _timer := 0.0
 
 
@@ -64,12 +66,31 @@ func _make(c: Vector2i):
 			break
 	if not border:
 		return null
-	# Entrance gaps: some coarse gate-cells along the border stay open.
+	# Entrance gaps: some coarse gate-cells along the border stay open — and
+	# each gate posts a couple of guards from the biome it opens into.
 	var gate := Vector2i(int(floor(pos.x / GATE)), int(floor(pos.y / GATE)))
 	if posmod(hash(Vector3i(world_seed ^ 0x77AA11, gate.x, gate.y)), 100) < Config.WALL_GAP_PCT:
+		if not _guarded.has(gate) and game != null:
+			_guarded[gate] = true
+			_post_guards(pos, b)
 		return null
 	var w := WallBody.new()
 	w.size = Vector2(TILE + 4.0, TILE + 4.0)
 	w.tint = Color(Config.BIOMES[b].color)
 	w.global_position = pos
 	return w
+
+
+func _post_guards(pos: Vector2, biome: String) -> void:
+	var roster: Array = Config.BIOMES[biome].roster
+	var arch: String = roster[roster.size() - 1].arch  # the biome's heavier archetype
+	for i in Config.GUARDS_PER_GATE:
+		var off := Vector2(randf_range(-50, 50), randf_range(-50, 50))
+		var e := Enemy.new()
+		e.setup(arch, biome, player, game._hp_scale())
+		e.guard = true
+		e.global_position = pos + off
+		e.home_pos = pos + off
+		e.biome_map = biome_map
+		e.died.connect(game._on_enemy_died.bind(e))
+		game.enemies_root.add_child(e)
