@@ -29,16 +29,41 @@ func _ready() -> void:
 	if OS.has_environment("SIM_TIME"):
 		duration = float(OS.get_environment("SIM_TIME"))
 	if enabled:
-		# Run as fast as the CPU allows. Physics stays fixed-step in GAME time,
-		# so higher speed changes wall-clock only — outcomes stay identical.
-		# Default chosen as the fastest speed that stays LOCKSTEP with realtime
-		# (verified against 6x baselines) — raise SIM_SPEED at your own risk;
-		# past the CPU's physics budget, process and physics clocks desync.
-		var speed := 10.0
+		# Run as fast as the CPU can hold LOCKSTEP: physics is fixed-step in
+		# game time, and _process() below auto-throttles time_scale whenever
+		# the process clock starts outrunning executed physics ticks (heavy
+		# hordes), so results stay parallel to realtime at any load.
+		target_speed = 10.0
 		if OS.has_environment("SIM_SPEED"):
-			speed = float(OS.get_environment("SIM_SPEED"))
-		Engine.time_scale = speed
-		Engine.max_physics_steps_per_frame = maxi(8, int(speed) + 8)
+			target_speed = float(OS.get_environment("SIM_SPEED"))
+		Engine.time_scale = target_speed
+		Engine.max_physics_steps_per_frame = maxi(8, int(target_speed) + 8)
+
+
+var target_speed := 10.0
+var _win_t := 0.0
+var _win_phys0 := -1
+
+
+func _process(delta: float) -> void:
+	if not enabled:
+		return
+	if _win_phys0 < 0:
+		_win_phys0 = Engine.get_physics_frames()
+		return
+	_win_t += delta
+	if _win_t < 0.5:
+		return
+	# Windowed rate check: how much physics actually ran vs process time. Keeps
+	# lockstep at any load, and RECOVERS speed when the horde thins out.
+	var phys_win := float(Engine.get_physics_frames() - _win_phys0) / float(Engine.physics_ticks_per_second)
+	var ratio := phys_win / _win_t
+	if ratio < 0.92:
+		Engine.time_scale = maxf(1.0, Engine.time_scale * 0.8)
+	elif ratio > 0.985 and Engine.time_scale < target_speed:
+		Engine.time_scale = minf(target_speed, Engine.time_scale * 1.25)
+	_win_t = 0.0
+	_win_phys0 = Engine.get_physics_frames()
 
 
 func reset() -> void:

@@ -167,11 +167,23 @@ func _input_vector() -> Vector2:
 
 
 var _bot_dir := Vector2.RIGHT
+var _bot_cache := Vector2.RIGHT
+var _bot_cache_ticks := 0
 ## Sim bot plays like a player: flee real pressure, hoover gems, chase beacons
-## (chests/pickups), otherwise explore outward.
+## (chests/pickups), otherwise explore outward. Decision cached a few ticks —
+## full-field scans every physics frame were the sim's CPU ceiling.
 func _sim_bot_vector() -> Vector2:
 	if OS.has_environment("DBG_STAND"):
 		return Vector2.ZERO
+	if _bot_cache_ticks > 0:
+		_bot_cache_ticks -= 1
+		return _bot_cache
+	_bot_cache_ticks = 8
+	_bot_cache = _bot_think()
+	return _bot_cache
+
+
+func _bot_think() -> Vector2:
 
 	# 1. Threat pressure from close enemies.
 	var flee := Vector2.ZERO
@@ -182,7 +194,7 @@ func _sim_bot_vector() -> Vector2:
 			flee += (global_position - e.global_position) / maxf(d, 8.0)
 			threats += 1
 	if threats >= 3:
-		return flee.normalized()  # genuinely swarmed: just get out
+		return _bot_slide(flee.normalized())  # genuinely swarmed: just get out
 
 	# 2. Collect: nearest gem, else nearest beacon target (chest/pickup).
 	var tgt: Node2D = null
@@ -203,14 +215,29 @@ func _sim_bot_vector() -> Vector2:
 		var dir: Vector2 = (tgt.global_position - global_position).normalized()
 		if threats > 0:
 			dir = (dir + flee.normalized() * 0.8).normalized()
-		return dir
+		return _bot_slide(dir)
 
 	# 3. Explore: keep a heading, drift it occasionally, bias away from spawn.
 	if randf() < 0.008:
 		_bot_dir = (_bot_dir.rotated(randf_range(-1.2, 1.2)) + global_position.normalized() * 0.3).normalized()
 	if threats > 0:
-		return (_bot_dir + flee.normalized()).normalized()
-	return _bot_dir
+		return _bot_slide((_bot_dir + flee.normalized()).normalized())
+	return _bot_slide(_bot_dir)
+
+
+## Slide the bot's heading along walls instead of pinning into them.
+func _bot_slide(dir: Vector2) -> Vector2:
+	var space := get_world_2d().direct_space_state
+	var q := PhysicsRayQueryParameters2D.create(global_position, global_position + dir * 90.0, 16)
+	var hit := space.intersect_ray(q)
+	if hit:
+		var n: Vector2 = hit.normal
+		var slid: Vector2 = dir - n * dir.dot(n)
+		if slid.length() > 0.05:
+			return slid.normalized()
+		_bot_dir = Vector2(-n.y, n.x)  # dead-on into a wall: turn along it
+		return _bot_dir
+	return dir
 
 
 # --- Insight: surviving a biome awakens its basic attack -----------------------------
@@ -234,6 +261,11 @@ func is_awakened(fam: String) -> bool:
 func add_insight(fam: String, amount: float) -> void:
 	if not insight.has(fam):
 		return
+	# Diminishing returns: the deeper a family, the less each gem teaches.
+	# Early curve (awakening) is untouched; T3 becomes a real commitment
+	# instead of a byproduct of the late-game kill-rate explosion.
+	var cap: float = Config.INSIGHT_TIERS[Config.INSIGHT_TIERS.size() - 1]
+	amount *= maxf(0.05, 1.0 - float(insight[fam]) / (cap * 1.05))
 	insight[fam] = float(insight[fam]) + amount
 	if insight_tier(fam) >= 1 and not awakened_fams[fam]:
 		awakened_fams[fam] = true
@@ -530,7 +562,8 @@ func _cast_basic(key: String, atk: Dictionary, target) -> void:
 				if key != "force":
 					p.tint = Config.FAMILY_COLORS[key]
 				p.source = self
-				p.global_position = global_position
+				# spawn ahead of the body so bolts don't die inside a wall we're touching
+				p.global_position = global_position + p.direction * (radius + 9.0)
 				projectile_parent.add_child(p)
 		"cleave":
 			var aim: Vector2 = (target.global_position - global_position).normalized()
