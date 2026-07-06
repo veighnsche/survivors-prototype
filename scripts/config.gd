@@ -138,7 +138,7 @@ var DESPAWN_RADIUS := 1500.0
 var MAX_ENEMIES := 450
 
 # --- Wardens: every biome seals you in until you kill its Warden ------------------
-var WARDEN_AFTER := 75.0        # seconds inside a sealed biome before its Warden comes
+var WARDEN_AFTER := 90.0        # seconds inside a biome before its Warden comes (and comes AGAIN if you linger)
 var WARDEN_HP := 260.0          # first Warden's hp; later ones grow
 var WARDEN_DMG := 24.0
 var WARDEN_CLEAR_BONUS := 0.8   # +80% Warden hp per biome already cleared
@@ -195,7 +195,8 @@ var CHEST_GOLD := 2
 var CHEST_HEAL := 25.0
 
 # Biome border walls
-var WALL_GAP_PCT := 12  # percent of border gate-cells left open as entrances (gates are rare)
+var WALL_GAP_PCT := 12   # percent of border gate-cells that contain a doorway
+var GATE_WIDTH := 130.0  # the doorway itself is TINY — one body wide
 
 # Obstacles / buildings
 var OBSTACLE_CELL := 420.0

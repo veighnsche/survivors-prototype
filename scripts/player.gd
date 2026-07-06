@@ -718,7 +718,7 @@ func take_damage(amount: float) -> void:
 		RunLog.bump("damage_taken", "dodged", amount)
 		return
 	if Sim.enabled:
-		Sim.damage_taken += max(0.0, amount - armor)
+		Sim.note_damage(max(0.0, amount - armor))
 		return
 	var remaining := maxf(0.0, amount - armor)
 	if bonus_shield > 0.0 and remaining > 0.0:

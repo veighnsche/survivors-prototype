@@ -66,14 +66,19 @@ func _make(c: Vector2i):
 			break
 	if not border:
 		return null
-	# Entrance gaps: some coarse gate-cells along the border stay open — and
-	# each gate posts a couple of guards from the biome it opens into.
+	# Gates: a few gate-cells contain a doorway — and the doorway is TINY, a
+	# fixed point in the cell only GATE_WIDTH wide. Guards stand right in it.
 	var gate := Vector2i(int(floor(pos.x / GATE)), int(floor(pos.y / GATE)))
-	if posmod(hash(Vector3i(world_seed ^ 0x77AA11, gate.x, gate.y)), 100) < Config.WALL_GAP_PCT:
-		if not _guarded.has(gate) and game != null:
-			_guarded[gate] = true
-			_post_guards(pos, b)
-		return null
+	var gh := hash(Vector3i(world_seed ^ 0x77AA11, gate.x, gate.y))
+	if posmod(gh, 100) < Config.WALL_GAP_PCT:
+		var jx := (float(posmod(gh >> 8, 1000)) / 1000.0 - 0.5) * GATE * 0.5
+		var jy := (float(posmod(gh >> 18, 1000)) / 1000.0 - 0.5) * GATE * 0.5
+		var doorway := (Vector2(gate) + Vector2(0.5, 0.5)) * GATE + Vector2(jx, jy)
+		if pos.distance_to(doorway) <= Config.GATE_WIDTH:
+			if not _guarded.has(gate) and game != null:
+				_guarded[gate] = true
+				_post_guards(doorway, b)
+			return null
 	var w := WallBody.new()
 	w.size = Vector2(TILE + 4.0, TILE + 4.0)
 	w.tint = Color(Config.BIOMES[b].color)

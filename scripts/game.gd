@@ -17,6 +17,7 @@ var boss_lock_biome := ""       # the biome the player is currently sealed insid
 var cleared_biomes: Dictionary = {}  # biome -> true once its Warden falls
 var warden_timer := -1.0        # counts down to the Warden's arrival
 var warden_alive := false
+var _stay_timer := 0.0          # lingering in a cleared biome brings the Warden BACK
 var _last_inside_pos := Vector2.ZERO
 var _seal_warn_cd := 0.0
 
@@ -237,6 +238,7 @@ func _process(delta: float) -> void:
 	player.current_biome = biome  # the brain leans toward the local biome's attack
 	if biome != _cur_biome:
 		_cur_biome = biome
+		_stay_timer = 0.0
 		RunLog.event("entered %s (lvl %d, hp %.0f)" % [Config.BIOMES[biome].name, level, player.hp])
 		if not cleared_biomes.has(biome):
 			# an unconquered biome seals behind you until its Warden falls
@@ -254,6 +256,26 @@ func _process(delta: float) -> void:
 		warden_timer -= delta
 		if warden_timer <= 0.0 and not warden_alive:
 			_spawn_warden()
+	elif boss_lock_biome == "" and not warden_alive:
+		# Linger in conquered land and it stirs again: reseal + instant Warden.
+		_stay_timer += delta
+		if _stay_timer >= Config.WARDEN_AFTER:
+			_stay_timer = 0.0
+			boss_lock_biome = biome
+			_last_inside_pos = player.global_position
+			cleared_biomes.erase(biome)
+			hud.show_banner("%s stirs — resealed!" % Config.BIOMES[biome].name, Color(0.92, 0.16, 0.22))
+			RunLog.event("RESEALED %s (lingered)" % biome)
+			_spawn_warden()
+
+	# Keep the seal status unmissable on screen.
+	if boss_lock_biome != "":
+		if warden_alive:
+			hud.set_seal("SEALED — slay the Warden")
+		else:
+			hud.set_seal("SEALED — Warden in %ds" % int(ceil(warden_timer)))
+	else:
+		hud.set_seal("")
 	RunLog.t = elapsed
 	RunLog.bump("time_in_biome_sec", biome, delta)
 	RunLog.tick_snapshot(delta, self)
@@ -694,8 +716,9 @@ func _capture_shot() -> void:
 func _sim_report() -> void:
 	var kps: float = kills / maxf(elapsed, 0.001)
 	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)
-	print("SIM_RESULT time=%.0f kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f enemies=%d" % [
-		elapsed, kills, kps, dps, Sim.damage_taken, enemies_root.get_child_count()])
+	var death_str := "%.0f" % Sim.death_time if Sim.death_time >= 0.0 else "survived"
+	print("SIM_RESULT time=%.0f kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f death_at=%s enemies=%d" % [
+		elapsed, kills, kps, dps, Sim.damage_taken, death_str, enemies_root.get_child_count()])
 	RunLog.finish("sim end", self)
 	get_tree().quit()
 

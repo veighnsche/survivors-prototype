@@ -13,6 +13,13 @@ var duration := 30.0
 
 var damage_dealt := 0.0
 var damage_taken := 0.0
+var death_time := -1.0  # when cumulative damage would have killed a 100hp caster
+
+
+func note_damage(amount: float) -> void:
+	damage_taken += amount
+	if death_time < 0.0 and damage_taken >= 100.0:
+		death_time = RunLog.t
 
 
 func _ready() -> void:

@@ -13,6 +13,8 @@ var xp_bar: ProgressBar
 var death_overlay: ColorRect
 var death_label: Label
 var banner_label: Label
+var seal_label: Label
+var _seal_frame: Array = []  # red edge strips shown while sealed
 
 
 func _ready() -> void:
@@ -56,6 +58,43 @@ func _ready() -> void:
 	banner_label.add_theme_font_size_override("font_size", 44)
 	banner_label.modulate.a = 0.0
 	add_child(banner_label)
+
+
+	seal_label = Label.new()
+	seal_label.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	seal_label.offset_top = 96.0
+	seal_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	seal_label.add_theme_font_size_override("font_size", 22)
+	seal_label.add_theme_color_override("font_color", Color(1.0, 0.35, 0.3))
+	add_child(seal_label)
+
+	# red frame strips (top/bottom/left/right), visible only while sealed
+	for i in 4:
+		var strip := ColorRect.new()
+		strip.color = Color(0.9, 0.15, 0.15, 0.32)
+		strip.visible = false
+		match i:
+			0:
+				strip.set_anchors_preset(Control.PRESET_TOP_WIDE)
+				strip.offset_bottom = 6.0
+			1:
+				strip.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+				strip.offset_top = -6.0
+			2:
+				strip.set_anchors_preset(Control.PRESET_LEFT_WIDE)
+				strip.offset_right = 6.0
+			3:
+				strip.set_anchors_preset(Control.PRESET_RIGHT_WIDE)
+				strip.offset_left = -6.0
+		add_child(strip)
+		_seal_frame.append(strip)
+
+
+func set_seal(text: String) -> void:
+	seal_label.text = text
+	var sealed := text != ""
+	for s in _seal_frame:
+		s.visible = sealed
 
 
 func show_banner(text: String, color: Color) -> void:
