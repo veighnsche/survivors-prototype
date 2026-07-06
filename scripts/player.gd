@@ -789,6 +789,7 @@ func _handle_contact(delta: float) -> void:
 	# buried in a horde is lethal, one husk brushing you is not.
 	var strongest := 0.0
 	var others := 0.0
+	var strongest_name := "contact"
 	for id in _overlapping:
 		var e = _overlapping[id]
 		if is_instance_valid(e):
@@ -796,11 +797,12 @@ func _handle_contact(delta: float) -> void:
 			if d > strongest:
 				others += strongest
 				strongest = d
+				strongest_name = str(e.stats.get("name", "contact"))
 			else:
 				others += d
 	var dmg := minf(strongest + others * Config.CONTACT_CROWD_FACTOR, Config.CONTACT_CROWD_CAP)
 	if dmg > 0.0:
-		take_damage(dmg)
+		take_damage(dmg, strongest_name + " (contact)")
 		if thorns_damage > 0.0:
 			for id in _overlapping.keys():
 				var e = _overlapping[id]
@@ -809,9 +811,10 @@ func _handle_contact(delta: float) -> void:
 		contact_timer = contact_tick
 
 
-func take_damage(amount: float) -> void:
+func take_damage(amount: float, src: String = "?") -> void:
 	if dead or invuln_t > 0.0:
 		return
+	RunLog.bump("threat_by_source", src, amount)  # WHO is actually hurting the player
 	if dodge_chance > 0.0 and randf() < dodge_chance:
 		Fx.floating_text(global_position + Vector2(0, -24), "dodged", Config.FAMILY_COLORS.sight)
 		RunLog.bump("damage_taken", "dodged", amount)

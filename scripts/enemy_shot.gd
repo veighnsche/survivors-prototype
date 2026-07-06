@@ -7,6 +7,7 @@ var damage := 7.0
 var speed := 300.0
 var direction := Vector2.RIGHT
 var life := 3.0
+var src := "shot"  # who fired it, for the threat log
 
 
 func _ready() -> void:
@@ -38,7 +39,7 @@ func _on_area_entered(area: Area2D) -> void:
 		if p.try_deflect_shot(global_position):
 			pass  # warded off
 		else:
-			p.take_damage(damage)
+			p.take_damage(damage, src + " (shot)")
 		queue_free()
 
 

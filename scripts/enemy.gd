@@ -225,7 +225,7 @@ func _warden_brain(delta: float) -> void:
 			move_and_slide()
 			if not _charge_hit and to_p.length() < radius + 20.0:
 				_charge_hit = true
-				target.take_damage(damage * 1.2)
+				target.take_damage(damage * 1.2, "Warden (charge)")
 			if _wtimer <= 0.0:
 				_wstate = "walk"
 				queue_redraw()
@@ -233,7 +233,7 @@ func _warden_brain(delta: float) -> void:
 			velocity = Vector2.ZERO
 			if _wtimer <= 0.0:
 				if to_p.length() <= Config.WARDEN_SLAM_RADIUS:
-					target.take_damage(damage)
+					target.take_damage(damage, "Warden (slam)")
 				var ring := RingFx.new()
 				ring.max_radius = Config.WARDEN_SLAM_RADIUS
 				ring.color = color
@@ -389,6 +389,7 @@ func _behavior_dir(delta: float) -> Vector2:
 func _fire_shot(dir: Vector2) -> void:
 	var s := EnemyShot.new()
 	s.damage = eff_damage()
+	s.src = str(stats.get("name", archetype))
 	s.speed = stats.shot_speed
 	s.direction = dir
 	s.global_position = global_position + dir * (radius + 6.0)
