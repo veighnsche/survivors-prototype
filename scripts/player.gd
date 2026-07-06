@@ -16,9 +16,9 @@ var speed := 210.0
 var radius := 13.0
 var color := Color(0.87, 0.85, 0.78)
 
-# Cast cycle: one cantrip per global cycle; each has its own cooldown.
+# GLOBAL cast cooldown: casting ANY cantrip silences all cantrips for the cast
+# cantrip's cooldown. Heavy casts cost you your voice.
 var cast_cd := 0.0
-var atk_cds: Dictionary = {}
 var bolt_count := 1
 var current_biome := "commons"  # set each frame by the run director
 var brain_report: Array = []    # live table of the selector's last decision
@@ -384,12 +384,10 @@ func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 
 func _cast_brain(delta: float) -> void:
 	cast_cd -= delta
-	for k in atk_cds:
-		atk_cds[k] = float(atk_cds[k]) - delta
 	if cast_cd > 0.0:
-		return
+		return  # the last cast still holds our voice
 
-	# Score EVERY awakened attack (for the live table), pick among the ready.
+	# Score EVERY awakened cantrip, cast the best — its cooldown gates us ALL.
 	var report: Array = []
 	var best := ""
 	var best_score := 0.0
@@ -397,13 +395,10 @@ func _cast_brain(delta: float) -> void:
 	for key in _available_basics():
 		var atk: Dictionary = Config.BASIC_ATTACKS[key]
 		var res := _score_attack(key, atk)
-		var cd_left := float(atk_cds.get(key, 0.0))
-		var entry := {"name": atk.name, "score": float(res.score), "cd": maxf(cd_left, 0.0),
+		var entry := {"name": atk.name, "score": float(res.score),
 			"home": Config.BIOMES[current_biome].family == key, "picked": false,
 			"no_target": float(res.score) <= 0.0}
 		report.append(entry)
-		if cd_left > 0.0 or float(res.score) <= 0.0:
-			continue
 		if float(res.score) > best_score:
 			best_score = res.score
 			best = key
@@ -416,8 +411,8 @@ func _cast_brain(delta: float) -> void:
 				entry.picked = true
 		_cast_basic(best, chosen, best_target)
 		RunLog.bump("basic_casts", chosen.name)
-		atk_cds[best] = _basic_cd(best, chosen) * attack_speed_mult * boost_rate
-		cast_cd = Config.CAST_CYCLE * attack_speed_mult * boost_rate
+		# THE cost: everything is silenced for this cantrip's cooldown.
+		cast_cd = _basic_cd(best, chosen) * attack_speed_mult * boost_rate
 	brain_report = report
 
 

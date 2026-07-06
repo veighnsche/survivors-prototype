@@ -10,8 +10,7 @@ var CAMERA_ZOOM := 1.6
 # brain computes will deal the most damage right now. "force" is the
 # tabula-rasa starter every run begins with.
 # kind: bolt (projectile), cleave (cone), chain (instant jumps), repulse
-# (radial knockback wave), burst (big radial AoE). cooldown is per-attack; the
-# caster cycles globally every CAST_CYCLE and picks ONE off-cooldown attack.
+# (radial knockback wave), burst (big radial AoE).
 # The cost of a cantrip is its COOLDOWN (tiered attacks pay +20%/tier). The
 # selector normalizes scores by cooldown, so heavy AoE must earn its long cd.
 var BASIC_ATTACKS := {
@@ -23,10 +22,11 @@ var BASIC_ATTACKS := {
 	"sight":   {"kind": "chain",   "name": "Storm Lance",  "cooldown": 0.90, "damage": 6.0, "range": 480.0, "dtype": "precise", "jumps": 2, "jump_range": 190.0},
 	"summon":  {"kind": "burst",   "name": "Soulburst",    "cooldown": 2.60, "damage": 9.0, "range": 230.0, "dtype": "physical"},
 }
-var CAST_CYCLE := 0.42        # global pace of the one-cantrip-per-cycle brain
+# GLOBAL cooldown model: casting a cantrip silences ALL cantrips for that
+# cantrip's cooldown. The cooldown IS the cost — a heavy cast buys silence.
 var BIOME_ATTUNE_BIAS := 1.45 # the brain leans toward the local biome's cantrip
 var BOLT_LIFE := 0.75
-var SCORE_CD_EXPONENT := 0.7  # score = value / cd^this (0 = per-cast, 1 = pure DPS)
+var SCORE_CD_EXPONENT := 0.85 # score = value / cd^this (≈throughput during the lockout it causes)
 
 # Skills are finite: a build is a CHOICE, not a collection.
 var SKILL_LIMIT := 5

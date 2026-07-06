@@ -24,7 +24,10 @@ func _draw() -> void:
 	var font := ThemeDB.fallback_font
 
 	var report: Array = player.brain_report
-	draw_string(font, Vector2(x, y), "Cantrips", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.75))
+	var header := "Cantrips"
+	if player.cast_cd > 0.0:
+		header += "   silenced %.1fs" % player.cast_cd
+	draw_string(font, Vector2(x, y), header, HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.75))
 	y += 8.0
 	for entry in report:
 		y += 22.0
@@ -32,8 +35,6 @@ func _draw() -> void:
 		var col := Color(1, 1, 1, 0.55)
 		if picked:
 			col = Color(0.5, 1.0, 0.6, 1.0)
-		elif entry.cd > 0.0:
-			col = Color(1, 1, 1, 0.32)
 		if picked:
 			draw_string(font, Vector2(x, y), ">", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col)
 		draw_string(font, Vector2(x + 14, y), str(entry.name), HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col)
@@ -43,16 +44,14 @@ func _draw() -> void:
 		draw_string(font, Vector2(x + 122, y), score_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col)
 		var state := ""
 		if picked:
-			state = "PICKED"
+			state = "PICKED (locks %.1fs)" % (player.cast_cd if player.cast_cd > 0.0 else 0.0)
 		elif entry.no_target:
 			state = "no target"
-		elif entry.cd > 0.0:
-			state = "cd %.1f" % float(entry.cd)
 		else:
-			state = "ready"
+			state = "candidate"
 		draw_string(font, Vector2(x + 172, y), state, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col)
 		if entry.home:
-			draw_string(font, Vector2(x + 246, y), "^ biome", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.95, 0.8, 0.4, 0.8))
+			draw_string(font, Vector2(x + 300, y), "^ biome", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.95, 0.8, 0.4, 0.8))
 
 	# --- committed spells -------------------------------------------------------
 	if game == null:
