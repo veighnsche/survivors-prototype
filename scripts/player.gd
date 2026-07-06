@@ -16,10 +16,9 @@ var speed := 210.0
 var radius := 13.0
 var color := Color(0.87, 0.85, 0.78)
 
-# Cast cycle: one cantrip per global cycle; each has its own cd and mana cost.
+# Cast cycle: one cantrip per global cycle; each has its own cooldown.
 var cast_cd := 0.0
 var atk_cds: Dictionary = {}
-var mana := 100.0
 var bolt_count := 1
 var current_biome := "commons"  # set each frame by the run director
 var brain_report: Array = []    # live table of the selector's last decision
@@ -131,7 +130,6 @@ func _process(delta: float) -> void:
 	if dead:
 		return
 	_tick_boosts(delta)
-	mana = minf(Config.MANA_MAX, mana + Config.MANA_REGEN * delta)
 	if recovery > 0.0 and hp < max_hp:
 		hp = min(max_hp, hp + recovery * delta)
 	if shield_max > 0.0 and shield_hp < shield_max:
@@ -307,7 +305,14 @@ func _basic_cd(key: String, atk: Dictionary) -> float:
 	return atk.cooldown * (1.0 + Config.TIER_CD_PENALTY * (tier - 1))
 
 
-## Utility scoring: damage + survival relief + healing need + home-turf lean.
+## Expected damage capped at the enemy's remaining HP — overkill is worthless,
+## so nuking a swarm of near-dead mites no longer inflates a score.
+func _est_capped(e, base: float, dtype: String) -> float:
+	return minf(_est(e, base, dtype), maxf(e.hp, 0.0))
+
+
+## Utility scoring: damage + survival relief + healing need + home-turf lean,
+## normalized by cooldown so heavy AoE must EARN its long recovery.
 func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 	var dmg_base := _basic_dmg(key, atk)
 	var score := 0.0
@@ -317,16 +322,16 @@ func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 			var t := _nearest_enemy_in(atk.range)
 			if t == null:
 				return {"score": 0.0}
-			score = _est(t, dmg_base, atk.dtype) * bolt_count
+			score = _est_capped(t, dmg_base, atk.dtype) * bolt_count
 			if atk.has("explode"):
 				var er: float = atk.explode * blast_radius_mult
 				for e2 in get_tree().get_nodes_in_group("enemies"):
 					if e2 != t and t.global_position.distance_to(e2.global_position) <= er:
-						score += _est(e2, dmg_base * 0.6, atk.dtype)
+						score += _est_capped(e2, dmg_base * 0.6, atk.dtype)
 			if atk.has("leech"):
 				# healing value scales with how hurt we are
 				var urgency: float = clampf(1.0 - hp / max_hp, 0.0, 1.0)
-				score += _est(t, dmg_base, atk.dtype) * atk.leech * urgency * 3.0
+				score += _est_capped(t, dmg_base, atk.dtype) * atk.leech * urgency * 3.0
 			target = t
 		"cleave":
 			var aim_t := _nearest_enemy_in(atk.range)
@@ -337,7 +342,7 @@ func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 			for e in get_tree().get_nodes_in_group("enemies"):
 				var to_e: Vector2 = e.global_position - global_position
 				if to_e.length() <= atk.range and absf(aim.angle_to(to_e.normalized())) <= half:
-					score += _est(e, dmg_base, atk.dtype)
+					score += _est_capped(e, dmg_base, atk.dtype)
 					if atk.has("slow") and e.slow_t <= 0.0:
 						score += e.speed * 0.02  # slow utility: fast enemies are worth chilling
 			target = aim_t
@@ -345,10 +350,10 @@ func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 			var t := _nearest_enemy_in(atk.range)
 			if t == null:
 				return {"score": 0.0}
-			score = _est(t, dmg_base, atk.dtype)
+			score = _est_capped(t, dmg_base, atk.dtype)
 			var links := _chain_targets(t, int(atk.jumps), atk.jump_range)
 			for e in links:
-				score += _est(e, dmg_base * 0.8, atk.dtype)
+				score += _est_capped(e, dmg_base * 0.8, atk.dtype)
 			target = t
 		"repulse":
 			# survival tool: value = damage + the contact damage you're relieving
@@ -356,8 +361,8 @@ func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 			var count := 0
 			for e in get_tree().get_nodes_in_group("enemies"):
 				if global_position.distance_to(e.global_position) <= atk.range:
-					score += _est(e, dmg_base, atk.dtype)
-					pressure += e.damage
+					score += _est_capped(e, dmg_base, atk.dtype)
+					pressure += e.eff_damage()
 					count += 1
 			if count == 0:
 				return {"score": 0.0}
@@ -366,12 +371,14 @@ func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 		"burst":
 			for e in get_tree().get_nodes_in_group("enemies"):
 				if global_position.distance_to(e.global_position) <= atk.range:
-					score += _est(e, dmg_base, atk.dtype)
+					score += _est_capped(e, dmg_base, atk.dtype)
 			if score <= 0.0:
 				return {"score": 0.0}
 	# Home-turf attunement: lean toward the attack this biome teaches.
 	if key == Config.BIOMES[current_biome].family:
 		score *= Config.BIOME_ATTUNE_BIAS
+	# Normalize by cooldown: value per commitment, not per splash fantasy.
+	score /= pow(maxf(_basic_cd(key, atk), 0.3), Config.SCORE_CD_EXPONENT)
 	return {"score": score, "target": target}
 
 
@@ -391,12 +398,11 @@ func _cast_brain(delta: float) -> void:
 		var atk: Dictionary = Config.BASIC_ATTACKS[key]
 		var res := _score_attack(key, atk)
 		var cd_left := float(atk_cds.get(key, 0.0))
-		var affordable: bool = mana >= float(atk.cost)
 		var entry := {"name": atk.name, "score": float(res.score), "cd": maxf(cd_left, 0.0),
 			"home": Config.BIOMES[current_biome].family == key, "picked": false,
-			"no_target": float(res.score) <= 0.0, "cost": float(atk.cost), "low_mana": not affordable}
+			"no_target": float(res.score) <= 0.0}
 		report.append(entry)
-		if cd_left > 0.0 or float(res.score) <= 0.0 or not affordable:
+		if cd_left > 0.0 or float(res.score) <= 0.0:
 			continue
 		if float(res.score) > best_score:
 			best_score = res.score
@@ -409,9 +415,7 @@ func _cast_brain(delta: float) -> void:
 			if entry.name == chosen.name:
 				entry.picked = true
 		_cast_basic(best, chosen, best_target)
-		mana -= float(chosen.cost)
 		RunLog.bump("basic_casts", chosen.name)
-		RunLog.bump("mana_spent", chosen.name, float(chosen.cost))
 		atk_cds[best] = _basic_cd(best, chosen) * attack_speed_mult * boost_rate
 		cast_cd = Config.CAST_CYCLE * attack_speed_mult * boost_rate
 	brain_report = report

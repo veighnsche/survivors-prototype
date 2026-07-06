@@ -12,23 +12,21 @@ var CAMERA_ZOOM := 1.6
 # kind: bolt (projectile), cleave (cone), chain (instant jumps), repulse
 # (radial knockback wave), burst (big radial AoE). cooldown is per-attack; the
 # caster cycles globally every CAST_CYCLE and picks ONE off-cooldown attack.
+# The cost of a cantrip is its COOLDOWN (tiered attacks pay +20%/tier). The
+# selector normalizes scores by cooldown, so heavy AoE must earn its long cd.
 var BASIC_ATTACKS := {
-	"force":   {"kind": "bolt",    "name": "Force Bolt",   "cost": 0.0,  "cooldown": 0.45, "damage": 4.5, "range": 360.0, "speed": 520.0, "dtype": "arcane"},
-	"blast":   {"kind": "bolt",    "name": "Fireball",     "cost": 8.0,  "cooldown": 0.80, "damage": 7.0, "range": 380.0, "speed": 460.0, "dtype": "arcane", "explode": 64.0},
-	"ward":    {"kind": "repulse", "name": "Repulse",      "cost": 10.0, "cooldown": 1.60, "damage": 7.0, "range": 150.0, "dtype": "reflect", "knockback": 120.0},
-	"drain":   {"kind": "bolt",    "name": "Leech Bolt",   "cost": 14.0, "cooldown": 0.70, "damage": 6.0, "range": 330.0, "speed": 460.0, "dtype": "necrotic", "leech": 0.22},
-	"control": {"kind": "cleave",  "name": "Frost Cleave", "cost": 8.0,  "cooldown": 0.75, "damage": 8.0, "range": 135.0, "arc": 150.0, "dtype": "frost", "slow": 0.5},
-	"sight":   {"kind": "chain",   "name": "Storm Lance",  "cost": 9.0,  "cooldown": 0.90, "damage": 6.0, "range": 480.0, "dtype": "precise", "jumps": 2, "jump_range": 190.0},
-	"summon":  {"kind": "burst",   "name": "Soulburst",    "cost": 16.0, "cooldown": 2.60, "damage": 9.0, "range": 230.0, "dtype": "physical"},
+	"force":   {"kind": "bolt",    "name": "Force Bolt",   "cooldown": 0.45, "damage": 4.5, "range": 360.0, "speed": 520.0, "dtype": "arcane"},
+	"blast":   {"kind": "bolt",    "name": "Fireball",     "cooldown": 0.80, "damage": 7.0, "range": 380.0, "speed": 460.0, "dtype": "arcane", "explode": 64.0},
+	"ward":    {"kind": "repulse", "name": "Repulse",      "cooldown": 1.60, "damage": 7.0, "range": 150.0, "dtype": "reflect", "knockback": 120.0},
+	"drain":   {"kind": "bolt",    "name": "Leech Bolt",   "cooldown": 0.90, "damage": 6.0, "range": 330.0, "speed": 460.0, "dtype": "necrotic", "leech": 0.22},
+	"control": {"kind": "cleave",  "name": "Frost Cleave", "cooldown": 0.75, "damage": 8.0, "range": 135.0, "arc": 150.0, "dtype": "frost", "slow": 0.5},
+	"sight":   {"kind": "chain",   "name": "Storm Lance",  "cooldown": 0.90, "damage": 6.0, "range": 480.0, "dtype": "precise", "jumps": 2, "jump_range": 190.0},
+	"summon":  {"kind": "burst",   "name": "Soulburst",    "cooldown": 2.60, "damage": 9.0, "range": 230.0, "dtype": "physical"},
 }
 var CAST_CYCLE := 0.42        # global pace of the one-cantrip-per-cycle brain
 var BIOME_ATTUNE_BIAS := 1.45 # the brain leans toward the local biome's cantrip
 var BOLT_LIFE := 0.75
-
-# Mana: cantrips cost it; Force Bolt is always free. Cheese-resistant sustain —
-# you can't spam Leech Bolt forever.
-var MANA_MAX := 100.0
-var MANA_REGEN := 7.0
+var SCORE_CD_EXPONENT := 0.7  # score = value / cd^this (0 = per-cast, 1 = pure DPS)
 
 # Skills are finite: a build is a CHOICE, not a collection.
 var SKILL_LIMIT := 5

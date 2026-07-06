@@ -56,6 +56,7 @@ var xp_to_next := 0.0
 var pending_levelups := 0
 
 var upgrade_levels: Dictionary = {}
+var picked_skills: Array = []  # [{name, color}] — shown in the HUD spell list
 var locked: Dictionary = {}
 var banished: Dictionary = {}
 var reroll_charges := 0
@@ -155,6 +156,7 @@ func _ready() -> void:
 
 	var attack_panel := AttackPanel.new()
 	attack_panel.player = player
+	attack_panel.game = self
 	hud.add_child(attack_panel)
 
 	card_screen = CardScreen.new()
@@ -532,7 +534,8 @@ func _draw_cards(n: int) -> Array:
 			if player.insight_tier(fam) < int(s[3]):
 				continue
 			chosen.append({"id": sid, "name": "%s — %s" % [Config.FAMILY_NAMES[fam], s[1]],
-				"desc": s[2], "rarity": "rare", "locks": []})
+				"desc": s[2], "rarity": "rare", "locks": [],
+				"kind": "Spell", "color": Config.FAMILY_COLORS[fam]})
 			break  # one skill offer per family at a time
 		if chosen.size() >= n - 1:
 			break
@@ -548,7 +551,8 @@ func _draw_cards(n: int) -> Array:
 			if banished.has(mid) or int(upgrade_levels.get(mid, 0)) >= int(m[3]):
 				continue
 			elig.append({"id": mid, "name": "%s — %s" % [Config.FAMILY_NAMES[fam], m[1]],
-				"desc": m[2], "rarity": "common", "max": m[3], "locks": []})
+				"desc": m[2], "rarity": "common", "max": m[3], "locks": [],
+				"kind": "Boost", "color": Config.FAMILY_COLORS[fam]})
 	for def in Upgrades.pool():
 		var id: String = def.id
 		if banished.has(id) or locked.has(id):
@@ -589,6 +593,9 @@ func _apply_choice(id: String) -> void:
 	if id.begins_with("skill:"):
 		var parts := id.split(":")
 		upgrade_levels[id] = 1
+		for s in FAMILY_SKILLS[parts[1]]:
+			if s[0] == parts[2]:
+				picked_skills.append({"name": s[1], "color": Config.FAMILY_COLORS[parts[1]]})
 		player.unlock_skill(parts[1], parts[2])
 		return
 	if id == "heal":

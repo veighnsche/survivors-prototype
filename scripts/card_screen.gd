@@ -95,7 +95,12 @@ func _rebuild() -> void:
 		var lvltxt := ""
 		if def.has("max"):
 			lvltxt = "\n\nLv %d → %d" % [lvl, lvl + 1]
-		b.text = "%d. %s\n\n%s%s" % [idx, def.name, def.desc, lvltxt]
+		var kind: String = def.get("kind", "Vital")
+		b.text = "[%s]\n%d. %s\n\n%s%s" % [kind, idx, def.name, def.desc, lvltxt]
+		var ccol: Color = def.get("color", Color(0.85, 0.85, 0.9))
+		b.add_theme_color_override("font_color", ccol)
+		b.add_theme_color_override("font_hover_color", ccol.lightened(0.3))
+		b.add_theme_color_override("font_focus_color", ccol)
 		var this_id: String = def.id
 		b.pressed.connect(func(): _on_card(this_id))
 		_cards_box.add_child(b)
