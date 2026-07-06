@@ -15,6 +15,7 @@ var dtype := "arcane"
 var fam := ""             # family credited when routed through the player
 var slow_factor := 1.0    # <1: chills what it hits
 var leech := 0.0          # >0: Leech Bolt heals the caster this fraction of damage
+var execute_hp := 0.0     # >0: True Bolt deals 1.5x to targets at/above this hp
 var tint := Color(1.0, 1.0, 0.65)
 var source: Node
 var _hit: Dictionary = {}
@@ -51,7 +52,10 @@ func _on_area_entered(area: Area2D) -> void:
 	if _hit.has(eid):
 		return
 	_hit[eid] = true
-	_deal(e, damage)
+	var dmg := damage
+	if execute_hp > 0.0 and e.hp >= execute_hp:
+		dmg *= 1.5  # the sniper's niche: punish the big ones
+	_deal(e, dmg)
 	if slow_factor < 1.0:
 		e.apply_slow(slow_factor, 1.6)
 	if explode_radius > 0.0:

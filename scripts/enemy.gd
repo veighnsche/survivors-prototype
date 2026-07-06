@@ -40,7 +40,12 @@ var feared_t := 0.0
 var _bstate := ""
 var _btimer := 0.0
 var _lock_dir := Vector2.ZERO
+var _lock_pos := Vector2.ZERO
 var _buff_timer := 0.0
+var _embold := false    # Husk: emboldened by nearby packmates
+var _sprint := false    # Mite: frenzy sprint when close
+var _revived := false   # Grave-swarm: reassembles once
+var _pack_timer := 0.0
 
 # skirmisher state
 var _shot_timer := 0.0
@@ -74,7 +79,10 @@ func apply_haste(mult: float, dur: float) -> void:
 
 
 ## Contact/shot damage right now — softer when fighting away from home turf.
+## Phased states (underground, airborne, a bone pile) can't touch you at all.
 func eff_damage() -> float:
+	if _bstate == "burrowed" or _bstate == "ascend" or _bstate == "bones":
+		return 0.0
 	return damage * (Config.OUT_OF_BIOME_DMG if _outside else 1.0)
 
 
@@ -166,6 +174,22 @@ func _physics_process(delta: float) -> void:
 		if haste_t <= 0.0:
 			haste_mult = 1.0
 
+	# Defensive-state ticks (these states park the body, so tick them here).
+	if _bstate == "harden":
+		_btimer -= delta
+		if _btimer <= 0.0:
+			_bstate = ""
+			queue_redraw()
+	elif _bstate == "bones":
+		_btimer -= delta
+		velocity = Vector2.ZERO
+		if _btimer <= 0.0:
+			_bstate = ""
+			hp = stats.hp * 0.4
+			modulate = Color.WHITE
+			queue_redraw()
+		return  # an inert pile: no behavior, no movement
+
 	if is_boss:
 		_warden_brain(delta)
 		return
@@ -179,15 +203,24 @@ func _physics_process(delta: float) -> void:
 
 func _state_speed() -> float:
 	match _bstate:
-		"windup", "surfacing":
+		"windup", "surfacing", "harden", "bones", "ascend":
 			return 0.0
 		"dashing":
 			return float(stats.get("dash_mult", 3.0))
 		"diving":
 			return float(stats.get("dive_mult", 3.0))
+		"dart":
+			return 2.2   # prowler's pounce out of its circle
+		"crash":
+			return 3.4   # roc dropping out of the sky
 		"burrowed":
-			return 1.9  # closing fast underground
-	return 1.0
+			return 1.9   # closing fast underground
+	var m := 1.0
+	if _embold:
+		m *= 1.22
+	if _sprint:
+		m *= 1.6
+	return m
 
 
 # --- The Warden: telegraphed moves, not a walking stat blob -------------------
@@ -269,12 +302,13 @@ func _behavior_dir(delta: float) -> Vector2:
 	if _outside and to_p.length() > Config.SELF_DEFENSE_RADIUS:
 		return (home_pos - global_position).normalized()
 	match behavior:
-		"kite":  # skirmisher: shoot and keep distance
+		"kite":  # skirmisher: shoot and keep distance — and LEAD the target
 			var d := to_p.length()
 			_shot_timer -= delta
 			if _shot_timer <= 0.0 and d <= stats.shot_range * 1.1:
 				_shot_timer = stats.shot_interval
-				_fire_shot(to_p.normalized())
+				var lead: Vector2 = to_p + target.velocity * (d / float(stats.shot_speed)) * 0.8
+				_fire_shot(lead.normalized())
 			if d > stats.shot_range * 0.85:
 				return to_p.normalized()
 			elif d < stats.shot_range * 0.45:
@@ -287,8 +321,68 @@ func _behavior_dir(delta: float) -> Vector2:
 				_shot_timer = stats.shot_interval
 				_fire_shot(to_p.normalized())
 			return to_p.normalized()
-		"darter":  # stray: fast, weaving beeline
+		"darter":  # stray: hit-and-run — bite, then break away, come again
+			_btimer -= delta
+			if _bstate == "fleeing":
+				if _btimer <= 0.0:
+					_bstate = ""
+				return (-to_p).normalized().rotated(sin(Time.get_ticks_msec() * 0.004) * 0.3)
+			if to_p.length() < 46.0:
+				_bstate = "fleeing"
+				_btimer = 1.1
 			return to_p.normalized().rotated(sin(Time.get_ticks_msec() * 0.006 + float(get_instance_id() % 100)) * 0.4)
+		"prowl":  # prowler: circle the prey, then pounce from the flank
+			_btimer -= delta
+			match _bstate:
+				"circle":
+					if _btimer <= 0.0:
+						_bstate = "dart"
+						_btimer = 0.5
+						_lock_dir = to_p.normalized()
+					return to_p.normalized().rotated(PI / 2.0) * _strafe_dir
+				"dart":
+					if _btimer <= 0.0:
+						_bstate = "cooldown"
+						_btimer = 0.8
+					return _lock_dir
+				"cooldown":
+					if _btimer <= 0.0:
+						_bstate = ""
+					return to_p.normalized()
+				_:
+					if to_p.length() < 180.0:
+						_bstate = "circle"
+						_btimer = 0.9
+					return to_p.normalized()
+		"roc_dive":  # roc: climbs out of reach, shadows you, crashes down
+			_btimer -= delta
+			match _bstate:
+				"ascend":
+					modulate.a = 0.35
+					if _btimer <= 0.0:
+						_bstate = "crash"
+						_lock_pos = target.global_position
+						queue_redraw()
+					return Vector2.ZERO
+				"crash":
+					var to_l := _lock_pos - global_position
+					if to_l.length() < 24.0:
+						modulate.a = 1.0
+						if to_p.length() < 90.0:
+							target.take_damage(damage * 1.5, "Roc (dive)")
+						Fx.shake(0.2)
+						_bstate = "fly"
+						_btimer = float(stats.dive_every)
+						queue_redraw()
+						return Vector2.ZERO
+					return to_l.normalized()
+				_:
+					modulate.a = 1.0
+					if _btimer <= 0.0 and to_p.length() < 480.0:
+						_bstate = "ascend"
+						_btimer = 0.9
+						queue_redraw()
+					return to_p.normalized()
 		"turret":  # volleyer: roots and fires 3-shot bursts when in range
 			if to_p.length() <= stats.shot_range:
 				_shot_timer -= delta
@@ -382,8 +476,40 @@ func _behavior_dir(delta: float) -> Vector2:
 				ring.global_position = global_position
 				get_parent().add_child(ring)
 			return to_p.normalized()
+		"flyer":  # gale: circles in, peppering light shots on the wing
+			if stats.has("shot_interval"):
+				_shot_timer -= delta
+				if _shot_timer <= 0.0 and to_p.length() <= stats.shot_range:
+					_shot_timer = stats.shot_interval
+					_fire_shot(to_p.normalized())
+			return to_p.normalized()
 		_:
-			return to_p.normalized()  # brawler / brute / shambler / boss
+			# per-archetype instincts on the shared beeline
+			match archetype:
+				"brawler":  # husks embolden in packs — thin them or they run you down
+					_pack_timer -= delta
+					if _pack_timer <= 0.0:
+						_pack_timer = 0.5
+						var packmates := 0
+						for e in get_tree().get_nodes_in_group("enemies"):
+							if e != self and e.archetype == "brawler" and global_position.distance_to(e.global_position) < 150.0:
+								packmates += 1
+								if packmates >= 2:
+									break
+						_embold = packmates >= 2
+						queue_redraw()
+				"stalker":  # fades to a shimmer at range; reveals up close
+					modulate.a = clampf(1.0 - (to_p.length() - 150.0) / 180.0, 0.16, 1.0)
+				"mite":  # frenzy sprint for the last stretch
+					_sprint = to_p.length() < 160.0
+				"broodmother":  # lays a mite every few seconds while alive
+					_buff_timer -= delta
+					if _buff_timer <= 0.0:
+						_buff_timer = 6.0
+						var g = get_parent().get_parent()
+						if g != null and g.has_method("spawn_minion"):
+							g.spawn_minion("mite", biome, global_position + Vector2(randf_range(-30, 30), randf_range(-30, 30)))
+			return to_p.normalized()  # brute / shambler / bonepile / boss
 
 
 func _fire_shot(dir: Vector2) -> void:
@@ -431,9 +557,33 @@ func take_damage(amount: float, dtype: String = "arcane") -> float:
 		return 0.0
 	if _bstate == "burrowed":
 		return 0.0  # untouchable underground — hit it when it surfaces
+	if _bstate == "ascend" or _bstate == "crash":
+		return 0.0  # the Roc is out of reach in the sky
+	# Bramble: hardens after being struck — 50% reduction while curled up.
+	if archetype == "bramble" and _bstate == "harden":
+		amount *= 0.5
+	# Barrow-Knight: raised shield blocks half of all RANGED damage; get close.
+	if archetype == "brute" and target != null and is_instance_valid(target):
+		if global_position.distance_to(target.global_position) > 140.0:
+			amount *= 0.5
 	var applied := amount * damage_mult_for(dtype)
 	if Sim.enabled:
 		Sim.damage_dealt += applied
+	# Grave-swarm: the first "death" only collapses it to bones — it reassembles
+	# in 2.5s at partial hp. Stomp the pile (any hit) to keep it down for good.
+	if archetype == "shambler" and not _revived and _bstate != "bones" and hp - applied <= 0.0:
+		_revived = true
+		_bstate = "bones"
+		_btimer = 2.5
+		hp = 0.01
+		modulate = Color(0.55, 0.55, 0.55)
+		queue_redraw()
+		return applied
+	# Bramble curls up after any hit.
+	if archetype == "bramble" and _bstate != "harden":
+		_bstate = "harden"
+		_btimer = 1.5
+		queue_redraw()
 	hp -= applied
 	if Config.SHOW_DAMAGE_NUMBERS:
 		_dmg_accum += applied
@@ -471,12 +621,34 @@ func _draw() -> void:
 	if _bstate == "burrowed":
 		draw_arc(Vector2.ZERO, radius * 0.8, PI, TAU, 12, color.darkened(0.2), 4.0)
 		return
+	# Grave-swarm bones: a stompable pile, ticking back to life.
+	if _bstate == "bones":
+		for i in 4:
+			var a := i * TAU / 4.0 + 0.5
+			draw_circle(Vector2(cos(a), sin(a)) * radius * 0.4, 3.0, color.darkened(0.3))
+		return
+	# Roc's shadow warns where it will crash.
+	if _bstate == "crash" or (_bstate == "ascend" and archetype == "roc"):
+		var shadow := to_local(_lock_pos if _bstate == "crash" else (target.global_position if target != null and is_instance_valid(target) else global_position))
+		draw_circle(shadow, 34.0, Color(0, 0, 0, 0.30))
+		draw_arc(shadow, 34.0, 0.0, TAU, 20, Color(1, 0.4, 0.3, 0.7), 2.0)
 	draw_circle(Vector2.ZERO, radius, color)
 	draw_arc(Vector2.ZERO, radius, 0.0, TAU, 20, Color(0, 0, 0, 0.35), 2.0)
 	# Per-archetype identity marks — every enemy in a biome reads differently.
 	match archetype:
 		"brute":
 			draw_arc(Vector2.ZERO, radius * 0.55, 0.0, TAU, 14, Color(0, 0, 0, 0.3), 3.0)
+			# the raised shield (blocks ranged damage)
+			var fd := (target.global_position - global_position).normalized() if target != null and is_instance_valid(target) else Vector2.RIGHT
+			draw_arc(Vector2.ZERO, radius + 4.0, fd.angle() - 0.8, fd.angle() + 0.8, 10, Color(0.9, 0.9, 0.95, 0.8), 3.5)
+		"bramble" :
+			if _bstate == "harden":
+				for i in 8:
+					var a2 := i * TAU / 8.0
+					draw_line(Vector2(cos(a2), sin(a2)) * radius, Vector2(cos(a2), sin(a2)) * (radius + 7.0), Color(1, 1, 1, 0.8), 2.0)
+		"brawler":
+			if _embold:
+				draw_arc(Vector2.ZERO, radius + 3.0, 0.0, TAU, 16, Color(1.0, 0.5, 0.4, 0.8), 2.0)
 		"skirmisher":
 			draw_circle(Vector2.ZERO, 3.0, Color(1, 1, 0.85, 0.9))
 		"volleyer":

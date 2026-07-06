@@ -186,6 +186,22 @@ func _ready() -> void:
 		player.add_insight(Sim.family, float(Config.INSIGHT_TIERS[Config.INSIGHT_TIERS.size() - 1]))
 		for s in FAMILY_SKILLS[Sim.family]:
 			player.unlock_skill(Sim.family, s[0])
+	if Sim.enabled and OS.has_environment("SIM_BIOME"):
+		# drop the bot straight into a chosen biome to test its roster directly
+		var want := OS.get_environment("SIM_BIOME")
+		var found := false
+		for r: float in [3000.0, 5000.0, 8000.0, 12000.0]:
+			if found:
+				break
+			for i in 48:
+				var ang: float = i * TAU / 48.0
+				var p: Vector2 = Vector2(cos(ang), sin(ang)) * r
+				if biome_map.biome_at(p) == want:
+					player.global_position = p
+					_last_inside_pos = p
+					found = true
+					break
+		RunLog.event("sim teleported to %s (%s)" % [want, "ok" if found else "NOT FOUND"])
 	run_started = true
 
 

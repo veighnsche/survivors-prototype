@@ -13,14 +13,17 @@ var CAMERA_ZOOM := 1.6
 # (radial knockback wave), burst (big radial AoE).
 # The cost of a cantrip is its COOLDOWN (tiered attacks pay +20%/tier). The
 # selector normalizes scores by cooldown, so heavy AoE must earn its long cd.
+# De-AoE'd roster: only Fireball (splash) and Repulse (defensive shove) touch
+# multiple enemies — everything else is single-target with a distinct niche,
+# so the brain picks AoE only when a real clump beats the single-target math.
 var BASIC_ATTACKS := {
-	"force":   {"kind": "bolt",    "name": "Force Bolt",   "cooldown": 0.45, "damage": 4.5, "range": 360.0, "speed": 520.0, "dtype": "arcane"},
-	"blast":   {"kind": "bolt",    "name": "Fireball",     "cooldown": 0.80, "damage": 7.0, "range": 380.0, "speed": 460.0, "dtype": "arcane", "explode": 64.0},
-	"ward":    {"kind": "repulse", "name": "Repulse",      "cooldown": 1.60, "damage": 7.0, "range": 150.0, "dtype": "reflect", "knockback": 120.0},
-	"drain":   {"kind": "bolt",    "name": "Leech Bolt",   "cooldown": 0.90, "damage": 6.0, "range": 330.0, "speed": 460.0, "dtype": "necrotic", "leech": 0.22},
-	"control": {"kind": "cleave",  "name": "Frost Cleave", "cooldown": 0.75, "damage": 8.0, "range": 135.0, "arc": 150.0, "dtype": "frost", "slow": 0.5},
-	"sight":   {"kind": "chain",   "name": "Storm Lance",  "cooldown": 0.90, "damage": 6.0, "range": 480.0, "dtype": "precise", "jumps": 2, "jump_range": 190.0},
-	"summon":  {"kind": "burst",   "name": "Soulburst",    "cooldown": 2.60, "damage": 9.0, "range": 230.0, "dtype": "physical"},
+	"force":   {"kind": "bolt",    "name": "Force Bolt",  "cooldown": 0.45, "damage": 4.5, "range": 360.0, "speed": 520.0, "dtype": "arcane"},
+	"blast":   {"kind": "bolt",    "name": "Fireball",    "cooldown": 0.85, "damage": 7.0, "range": 380.0, "speed": 460.0, "dtype": "arcane", "explode": 56.0},
+	"ward":    {"kind": "repulse", "name": "Repulse",     "cooldown": 1.40, "damage": 3.0, "range": 150.0, "dtype": "reflect", "knockback": 150.0, "slow": 0.45},
+	"drain":   {"kind": "bolt",    "name": "Leech Bolt",  "cooldown": 0.90, "damage": 6.0, "range": 330.0, "speed": 460.0, "dtype": "necrotic", "leech": 0.22},
+	"control": {"kind": "bolt",    "name": "Frost Lance", "cooldown": 0.70, "damage": 6.0, "range": 380.0, "speed": 560.0, "dtype": "frost", "slow": 0.35, "pierce": 1},
+	"sight":   {"kind": "bolt",    "name": "True Bolt",   "cooldown": 0.85, "damage": 7.0, "range": 500.0, "speed": 660.0, "dtype": "precise", "execute": 20.0},
+	"summon":  {"kind": "bolt",    "name": "Spirit Dart", "cooldown": 0.32, "damage": 3.2, "range": 340.0, "speed": 480.0, "dtype": "physical"},
 }
 # GLOBAL cooldown model: casting a cantrip silences ALL cantrips for that
 # cantrip's cooldown. The cooldown IS the cost — a heavy cast buys silence.
@@ -118,13 +121,15 @@ var ARCHETYPES := {
 	"bonepile":   {"name": "Bonepile",     "hp": 40.0,  "speed": 30.0,  "damage": 10.0, "radius": 17.0, "xp": "large",  "behavior": "beeline",
 		"splits": {"arch": "shambler", "count": 3}},
 	# Wilds — fast packs with a leader
-	"prowler":    {"name": "Prowler",      "hp": 5.0,   "speed": 150.0, "damage": 5.0,  "radius": 8.0,  "xp": "small",  "behavior": "darter"},
+	"prowler":    {"name": "Prowler",      "hp": 5.0,   "speed": 150.0, "damage": 5.0,  "radius": 8.0,  "xp": "small",  "behavior": "prowl"},
 	"stalker":    {"name": "Stalker",      "hp": 14.0,  "speed": 118.0, "damage": 8.0,  "radius": 12.0, "xp": "medium", "behavior": "beeline"},
 	"howler":     {"name": "Howler",       "hp": 16.0,  "speed": 95.0,  "damage": 6.0,  "radius": 12.0, "xp": "medium", "behavior": "pack_buffer",
 		"buff_radius": 220.0},
 	# Cragspire — the sky is the threat
-	"gale":       {"name": "Gale",         "hp": 5.0,   "speed": 135.0, "damage": 5.0,  "radius": 8.0,  "xp": "small",  "behavior": "flyer"},
-	"roc":        {"name": "Roc",          "hp": 20.0,  "speed": 95.0,  "damage": 10.0, "radius": 16.0, "xp": "medium", "behavior": "flyer"},
+	"gale":       {"name": "Gale",         "hp": 5.0,   "speed": 135.0, "damage": 4.0,  "radius": 8.0,  "xp": "small",  "behavior": "flyer",
+		"shot_range": 300.0, "shot_interval": 4.0, "shot_speed": 210.0},
+	"roc":        {"name": "Roc",          "hp": 20.0,  "speed": 95.0,  "damage": 10.0, "radius": 16.0, "xp": "medium", "behavior": "roc_dive",
+		"dive_every": 4.5},
 	"diver":      {"name": "Diver",        "hp": 7.0,   "speed": 120.0, "damage": 9.0,  "radius": 9.0,  "xp": "medium", "behavior": "diver",
 		"dive_every": 3.5, "dive_mult": 3.2, "dive_time": 0.8},
 	# Hollow — the endless tide, above and below

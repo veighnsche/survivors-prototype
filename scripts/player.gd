@@ -420,7 +420,10 @@ func _score_attack(key: String, atk: Dictionary) -> Dictionary:
 			var t := _nearest_enemy_in(atk.range)
 			if t == null:
 				return {"score": 0.0}
-			score = _est_capped(t, dmg_base, atk.dtype) * bolt_count
+			var eff_base := dmg_base
+			if atk.has("execute") and t.hp >= float(atk.execute):
+				eff_base *= 1.5
+			score = _est_capped(t, eff_base, atk.dtype) * bolt_count
 			if atk.has("explode"):
 				var er: float = atk.explode * blast_radius_mult
 				for e2 in get_tree().get_nodes_in_group("enemies"):
@@ -559,6 +562,10 @@ func _cast_basic(key: String, atk: Dictionary, target) -> void:
 					p.explode_factor = 0.6
 				if atk.has("leech"):
 					p.leech = atk.leech
+				if atk.has("pierce"):
+					p.pierce = int(atk.pierce)
+				if atk.has("execute"):
+					p.execute_hp = float(atk.execute)
 				if key != "force":
 					p.tint = Config.FAMILY_COLORS[key]
 				p.source = self
@@ -595,6 +602,8 @@ func _cast_basic(key: String, atk: Dictionary, target) -> void:
 				if to_e.length() <= atk.range:
 					deal(e, dmg_base, atk.dtype, fam)
 					e.global_position += to_e.normalized() * atk.knockback
+					if atk.has("slow"):
+						e.apply_slow(atk.slow, 1.2)  # staggered by the shove
 			var ring := RingFx.new()
 			ring.max_radius = atk.range
 			ring.color = Config.FAMILY_COLORS.ward
