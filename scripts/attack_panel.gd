@@ -26,7 +26,7 @@ func _draw() -> void:
 	var y := 120.0
 	var font := ThemeDB.fallback_font
 
-	draw_string(font, Vector2(x, y), "Basic attacks", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(1, 1, 1, 0.75))
+	draw_string(font, Vector2(x, y), "Cantrips    mana %d/%d" % [int(player.mana), int(Config.MANA_MAX)], HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color(0.55, 0.75, 1.0, 0.9))
 	y += 8.0
 
 	for entry in report:
@@ -35,7 +35,7 @@ func _draw() -> void:
 		var col := Color(1, 1, 1, 0.55)
 		if picked:
 			col = Color(0.5, 1.0, 0.6, 1.0)
-		elif entry.cd > 0.0:
+		elif entry.cd > 0.0 or entry.get("low_mana", false):
 			col = Color(1, 1, 1, 0.32)
 		# marker
 		if picked:
@@ -47,17 +47,23 @@ func _draw() -> void:
 		if not entry.no_target:
 			score_txt = "%.1f" % float(entry.score)
 		draw_string(font, Vector2(x + 118, y), score_txt, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, col)
+		# mana cost
+		var cost := int(entry.get("cost", 0.0))
+		if cost > 0:
+			draw_string(font, Vector2(x + 166, y), str(cost) + "m", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.55, 0.75, 1.0, 0.8))
 		# state
 		var state := ""
 		if picked:
 			state = "PICKED"
+		elif entry.get("low_mana", false):
+			state = "low mana"
 		elif entry.no_target:
 			state = "no target"
 		elif entry.cd > 0.0:
 			state = "cd %.1f" % float(entry.cd)
 		else:
 			state = "ready"
-		draw_string(font, Vector2(x + 168, y), state, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col)
+		draw_string(font, Vector2(x + 205, y), state, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, col)
 		# home-turf lean marker
 		if entry.home:
-			draw_string(font, Vector2(x + 238, y), "^ biome", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.95, 0.8, 0.4, 0.8))
+			draw_string(font, Vector2(x + 280, y), "^ biome", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color(0.95, 0.8, 0.4, 0.8))

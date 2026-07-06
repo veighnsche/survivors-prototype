@@ -515,7 +515,14 @@ func _draw_cards(n: int) -> Array:
 	# offers — the affinity choice is the point. Up to n-1 so a Vital option
 	# always remains.
 	var chosen: Array = []
+	# A build is finite: at most SKILL_LIMIT skills per run.
+	var skills_owned := 0
+	for uid in upgrade_levels:
+		if String(uid).begins_with("skill:"):
+			skills_owned += 1
 	for fam in FAMILY_SKILLS:
+		if skills_owned >= Config.SKILL_LIMIT:
+			break
 		if not player.is_awakened(fam):
 			continue
 		for s in FAMILY_SKILLS[fam]:

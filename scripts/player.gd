@@ -16,9 +16,10 @@ var speed := 210.0
 var radius := 13.0
 var color := Color(0.87, 0.85, 0.78)
 
-# Cast cycle: one basic attack per global cycle; each attack has its own cd.
+# Cast cycle: one cantrip per global cycle; each has its own cd and mana cost.
 var cast_cd := 0.0
 var atk_cds: Dictionary = {}
+var mana := 100.0
 var bolt_count := 1
 var current_biome := "commons"  # set each frame by the run director
 var brain_report: Array = []    # live table of the selector's last decision
@@ -130,6 +131,7 @@ func _process(delta: float) -> void:
 	if dead:
 		return
 	_tick_boosts(delta)
+	mana = minf(Config.MANA_MAX, mana + Config.MANA_REGEN * delta)
 	if recovery > 0.0 and hp < max_hp:
 		hp = min(max_hp, hp + recovery * delta)
 	if shield_max > 0.0 and shield_hp < shield_max:
@@ -223,7 +225,7 @@ func unlock_skill(fam: String, key: String) -> void:
 			deflect_chance = 0.6
 			shield_max += 24.0
 		"siphon":
-			siphon_pct += 0.10
+			siphon_pct += 0.06
 		"rot":
 			rot_radius = 100.0
 			rot_damage = 2.2
@@ -389,11 +391,12 @@ func _cast_brain(delta: float) -> void:
 		var atk: Dictionary = Config.BASIC_ATTACKS[key]
 		var res := _score_attack(key, atk)
 		var cd_left := float(atk_cds.get(key, 0.0))
+		var affordable: bool = mana >= float(atk.cost)
 		var entry := {"name": atk.name, "score": float(res.score), "cd": maxf(cd_left, 0.0),
 			"home": Config.BIOMES[current_biome].family == key, "picked": false,
-			"no_target": float(res.score) <= 0.0}
+			"no_target": float(res.score) <= 0.0, "cost": float(atk.cost), "low_mana": not affordable}
 		report.append(entry)
-		if cd_left > 0.0 or float(res.score) <= 0.0:
+		if cd_left > 0.0 or float(res.score) <= 0.0 or not affordable:
 			continue
 		if float(res.score) > best_score:
 			best_score = res.score
@@ -406,7 +409,9 @@ func _cast_brain(delta: float) -> void:
 			if entry.name == chosen.name:
 				entry.picked = true
 		_cast_basic(best, chosen, best_target)
+		mana -= float(chosen.cost)
 		RunLog.bump("basic_casts", chosen.name)
+		RunLog.bump("mana_spent", chosen.name, float(chosen.cost))
 		atk_cds[best] = _basic_cd(best, chosen) * attack_speed_mult * boost_rate
 		cast_cd = Config.CAST_CYCLE * attack_speed_mult * boost_rate
 	brain_report = report
@@ -682,11 +687,20 @@ func _handle_contact(delta: float) -> void:
 	contact_timer -= delta
 	if contact_timer > 0.0 or _overlapping.is_empty():
 		return
-	var dmg := 0.0
+	# Crowd contact: strongest toucher at full, the rest add partially — being
+	# buried in a horde is lethal, one husk brushing you is not.
+	var strongest := 0.0
+	var others := 0.0
 	for id in _overlapping:
 		var e = _overlapping[id]
 		if is_instance_valid(e):
-			dmg = max(dmg, e.eff_damage())
+			var d: float = e.eff_damage()
+			if d > strongest:
+				others += strongest
+				strongest = d
+			else:
+				others += d
+	var dmg := minf(strongest + others * Config.CONTACT_CROWD_FACTOR, Config.CONTACT_CROWD_CAP)
 	if dmg > 0.0:
 		take_damage(dmg)
 		if thorns_damage > 0.0:
@@ -844,7 +858,7 @@ func apply_upgrade(id: String) -> void:
 		"drain_deeper":
 			fam_power.drain *= 1.25
 		"drain_thicker":
-			siphon_pct += 0.03
+			siphon_pct += 0.02
 		"control_chill":
 			chill_level += 1
 			fam_power.control *= 1.15
