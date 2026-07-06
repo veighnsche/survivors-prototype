@@ -29,7 +29,10 @@ func _ready() -> void:
 		var h := hash(Vector3i(world_seed ^ 0x0D008, i, 7))
 		var frac := 0.2 + 0.6 * (float(posmod(h, 1000)) / 1000.0)
 		var ang := (float(i) + frac) * TAU / 6.0 - biome_map._sector_offset
-		_spawn_doors.append(Vector2(cos(ang), sin(ang)) * Config.COMMONS_RADIUS)
+		var door := Vector2(cos(ang), sin(ang)) * Config.COMMONS_RADIUS
+		_spawn_doors.append(door)
+		if game != null:
+			game.known_gates.append(door)
 
 
 func _process(delta: float) -> void:
@@ -110,6 +113,7 @@ func _make(c: Vector2i):
 			if not _guarded.has(gate) and game != null:
 				_guarded[gate] = true
 				_post_guards(doorway, b)
+				game.known_gates.append(doorway)  # discovered: the compass can use it
 			return null
 	var w := WallBody.new()
 	w.size = Vector2(TILE + 4.0, TILE + 4.0)

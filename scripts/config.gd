@@ -57,17 +57,17 @@ var INSIGHT_TIERS := [14.0, 45.0, 100.0]
 # roster = the enemy archetypes that spawn here (weighted); obstacle = terrain style.
 var BIOMES := {
 	"commons":    {"name": "The Commons", "color": Color("#E2493B"), "family": "blast",   "obstacle": "block",
-		"roster": [{"arch": "brawler", "w": 0.7}, {"arch": "darter", "w": 0.3}]},
+		"roster": [{"arch": "brawler", "w": 0.55}, {"arch": "darter", "w": 0.25}, {"arch": "lunger", "w": 0.2}]},
 	"thornreach": {"name": "Thornreach",  "color": Color("#E0A02E"), "family": "ward",    "obstacle": "hedge",
-		"roster": [{"arch": "skirmisher", "w": 0.65}, {"arch": "bramble", "w": 0.35}]},
+		"roster": [{"arch": "skirmisher", "w": 0.5}, {"arch": "bramble", "w": 0.25}, {"arch": "volleyer", "w": 0.25}]},
 	"barrows":    {"name": "The Barrows", "color": Color("#6FB03A"), "family": "drain",   "obstacle": "tomb",
-		"roster": [{"arch": "brute", "w": 0.55}, {"arch": "shambler", "w": 0.45}]},
+		"roster": [{"arch": "brute", "w": 0.45}, {"arch": "shambler", "w": 0.35}, {"arch": "bonepile", "w": 0.2}]},
 	"wilds":      {"name": "The Wilds",   "color": Color("#3FCDE0"), "family": "control", "obstacle": "tree",
-		"roster": [{"arch": "prowler", "w": 0.65}, {"arch": "stalker", "w": 0.35}]},
+		"roster": [{"arch": "prowler", "w": 0.5}, {"arch": "stalker", "w": 0.3}, {"arch": "howler", "w": 0.2}]},
 	"cragspire":  {"name": "Cragspire",   "color": Color("#4C8DF0"), "family": "sight",   "obstacle": "spire",
-		"roster": [{"arch": "gale", "w": 0.7}, {"arch": "roc", "w": 0.3}]},
+		"roster": [{"arch": "gale", "w": 0.55}, {"arch": "roc", "w": 0.25}, {"arch": "diver", "w": 0.2}]},
 	"hollow":     {"name": "The Hollow",  "color": Color("#9A54E4"), "family": "summon",  "obstacle": "block",
-		"roster": [{"arch": "mite", "w": 0.8}, {"arch": "broodmother", "w": 0.2}]},
+		"roster": [{"arch": "mite", "w": 0.6}, {"arch": "broodmother", "w": 0.2}, {"arch": "tunneler", "w": 0.2}]},
 }
 var COMMONS_RADIUS := 1600.0     # the starting Commons field — a real area, not a dot
 var SPAWN_FAIR_RADIUS := 14000.0 # sector wedges run from the Commons edge WAY out — each one a territory
@@ -100,26 +100,39 @@ var BIOME_RESISTS := {
 # --- Enemy archetypes ---------------------------------------------------------
 # name shown in the codex; behavior = how it moves/attacks.
 var ARCHETYPES := {
-	# Commons
+	# Commons — the melee rush school: pressure from all speeds
 	"brawler":    {"name": "Husk",         "hp": 3.5,   "speed": 118.0, "damage": 5.0,  "radius": 9.0,  "xp": "small",  "behavior": "beeline"},
 	"darter":     {"name": "Stray",        "hp": 2.0,   "speed": 165.0, "damage": 3.0,  "radius": 7.0,  "xp": "small",  "behavior": "darter"},
-	# Thornreach
+	"lunger":     {"name": "Pouncer",      "hp": 5.0,   "speed": 100.0, "damage": 8.0,  "radius": 10.0, "xp": "medium", "behavior": "lunger",
+		"lunge_range": 260.0, "windup": 0.6, "dash_mult": 3.1, "dash_time": 0.5},
+	# Thornreach — layered ranged pressure
 	"skirmisher": {"name": "Slinger",      "hp": 7.0,   "speed": 90.0,  "damage": 5.0,  "radius": 10.0, "xp": "medium", "behavior": "kite",
 		"shot_range": 320.0, "shot_interval": 3.4, "shot_speed": 250.0},
 	"bramble":    {"name": "Bramble",      "hp": 15.0,  "speed": 40.0,  "damage": 6.0,  "radius": 15.0, "xp": "medium", "behavior": "advance_shoot",
 		"shot_range": 300.0, "shot_interval": 3.8, "shot_speed": 220.0},
-	# Barrows
+	"volleyer":   {"name": "Volleyer",     "hp": 12.0,  "speed": 55.0,  "damage": 5.0,  "radius": 12.0, "xp": "medium", "behavior": "turret",
+		"shot_range": 360.0, "shot_interval": 4.2, "shot_speed": 235.0, "burst": 3},
+	# Barrows — attrition: tanks, tides, and things that don't stay dead
 	"brute":      {"name": "Barrow-Knight","hp": 30.0,  "speed": 42.0,  "damage": 13.0, "radius": 20.0, "xp": "large",  "behavior": "beeline"},
 	"shambler":   {"name": "Grave-swarm",  "hp": 5.0,   "speed": 36.0,  "damage": 7.0,  "radius": 11.0, "xp": "small",  "behavior": "beeline"},
-	# Wilds (beast packs)
+	"bonepile":   {"name": "Bonepile",     "hp": 40.0,  "speed": 30.0,  "damage": 10.0, "radius": 17.0, "xp": "large",  "behavior": "beeline",
+		"splits": {"arch": "shambler", "count": 3}},
+	# Wilds — fast packs with a leader
 	"prowler":    {"name": "Prowler",      "hp": 5.0,   "speed": 150.0, "damage": 5.0,  "radius": 8.0,  "xp": "small",  "behavior": "darter"},
 	"stalker":    {"name": "Stalker",      "hp": 14.0,  "speed": 118.0, "damage": 8.0,  "radius": 12.0, "xp": "medium", "behavior": "beeline"},
-	# Cragspire (flyers: ignore terrain, swooping speed)
+	"howler":     {"name": "Howler",       "hp": 16.0,  "speed": 95.0,  "damage": 6.0,  "radius": 12.0, "xp": "medium", "behavior": "pack_buffer",
+		"buff_radius": 220.0},
+	# Cragspire — the sky is the threat
 	"gale":       {"name": "Gale",         "hp": 5.0,   "speed": 135.0, "damage": 5.0,  "radius": 8.0,  "xp": "small",  "behavior": "flyer"},
 	"roc":        {"name": "Roc",          "hp": 20.0,  "speed": 95.0,  "damage": 10.0, "radius": 16.0, "xp": "medium", "behavior": "flyer"},
-	# Hollow (the endless tide)
+	"diver":      {"name": "Diver",        "hp": 7.0,   "speed": 120.0, "damage": 9.0,  "radius": 9.0,  "xp": "medium", "behavior": "diver",
+		"dive_every": 3.5, "dive_mult": 3.2, "dive_time": 0.8},
+	# Hollow — the endless tide, above and below
 	"mite":       {"name": "Mite",         "hp": 1.5,   "speed": 85.0,  "damage": 3.0,  "radius": 6.0,  "xp": "small",  "behavior": "beeline"},
-	"broodmother":{"name": "Broodmother",  "hp": 26.0,  "speed": 38.0,  "damage": 10.0, "radius": 18.0, "xp": "large",  "behavior": "beeline"},
+	"broodmother":{"name": "Broodmother",  "hp": 26.0,  "speed": 38.0,  "damage": 10.0, "radius": 18.0, "xp": "large",  "behavior": "beeline",
+		"splits": {"arch": "mite", "count": 4}},
+	"tunneler":   {"name": "Tunneler",     "hp": 18.0,  "speed": 70.0,  "damage": 9.0,  "radius": 13.0, "xp": "medium", "behavior": "burrower",
+		"burrow_time": 2.4, "surface_time": 3.0},
 	# Boss
 	"boss":       {"name": "Reaper",       "hp": 700.0, "speed": 46.0,  "damage": 30.0, "radius": 40.0, "xp": "large",  "behavior": "beeline"},
 }
@@ -144,6 +157,9 @@ var WARDEN_DMG := 24.0
 var WARDEN_CLEAR_BONUS := 0.8   # +80% Warden hp per biome already cleared
 var GUARDS_PER_GATE := 2        # entrance guards posted at border gates
 var GUARD_AGGRO := 340.0        # guards engage within this range, else hold their post
+var WARDEN_ATTACK_EVERY := 5.0  # seconds between Warden special moves
+var WARDEN_CHARGE_SPEED := 3.6  # x its walk speed during a charge
+var WARDEN_SLAM_RADIUS := 210.0
 
 # --- Gems / XP (character level = the Vital floor) -----------------------------
 var GEM_VALUES := {"small": 1, "medium": 5, "large": 25}

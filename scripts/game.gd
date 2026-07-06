@@ -14,6 +14,8 @@ var biome_map: BiomeMap
 var bg: BackgroundGrid
 var _cur_biome := ""
 var boss_lock_biome := ""       # the biome the player is currently sealed inside
+var warden_ref: Node2D = null   # the living Warden, for the compass
+var known_gates: Array = []     # doorway positions discovered so far
 var cleared_biomes: Dictionary = {}  # biome -> true once its Warden falls
 var warden_timer := -1.0        # counts down to the Warden's arrival
 var warden_alive := false
@@ -166,6 +168,11 @@ func _ready() -> void:
 	attack_panel.game = self
 	hud.add_child(attack_panel)
 
+	var compass := Compass.new()
+	compass.player = player
+	compass.game = self
+	hud.add_child(compass)
+
 	card_screen = CardScreen.new()
 	card_screen.game = self
 	card_screen.picked.connect(_on_card_picked)
@@ -208,7 +215,7 @@ func _process(delta: float) -> void:
 		return
 
 	elapsed += delta
-	if Sim.enabled and elapsed >= Sim.duration:
+	if Sim.enabled and (elapsed >= Sim.duration or Sim.wall_capped()):
 		_sim_report()
 		return
 	if OS.has_environment("SHOT") and not _shot_done and elapsed > 2.0:
@@ -380,8 +387,19 @@ func _spawn_warden() -> void:
 	e.global_position = pos
 	e.died.connect(_on_enemy_died.bind(e))
 	enemies_root.add_child(e)
+	warden_ref = e
 	hud.show_banner("The Warden of %s awakens" % Config.BIOMES[biome].name, Config.BIOMES[biome].color)
 	RunLog.event("WARDEN spawned (%s, hp %.0f)" % [biome, target_hp])
+
+
+func spawn_minion(arch: String, biome: String, pos: Vector2) -> void:
+	var m := Enemy.new()
+	m.setup(arch, biome, player, _hp_scale())
+	m.global_position = pos
+	m.home_pos = pos
+	m.biome_map = biome_map
+	m.died.connect(_on_enemy_died.bind(m))
+	enemies_root.add_child(m)
 
 
 func _ring_point() -> Vector2:
@@ -404,16 +422,11 @@ func _on_enemy_died(e) -> void:
 	RunLog.bump("kills_by_enemy", Config.ARCHETYPES[e.archetype].name)
 	if e._outside:
 		RunLog.bump("kills_special", "out_of_biome")
-	# Broodmothers burst into mites on death — the tide feeds itself.
-	if e.archetype == "broodmother":
-		for i in 4:
-			var m := Enemy.new()
-			m.setup("mite", e.biome, player, _hp_scale())
-			m.global_position = e.global_position + Vector2(randf_range(-24, 24), randf_range(-24, 24))
-			m.home_pos = e.home_pos
-			m.biome_map = biome_map
-			m.died.connect(_on_enemy_died.bind(m))
-			enemies_root.add_child(m)
+	# Splitters (Broodmother, Bonepile...) burst into their brood on death.
+	if e.stats.has("splits"):
+		var sp: Dictionary = e.stats.splits
+		for i in int(sp.count):
+			spawn_minion(sp.arch, e.biome, e.global_position + Vector2(randf_range(-26, 26), randf_range(-26, 26)))
 
 	var fam: String = Config.BIOMES[e.biome].family
 	if e.is_boss:
@@ -421,6 +434,7 @@ func _on_enemy_died(e) -> void:
 		Fx.shake(Config.SHAKE_ON_BOSS_DEATH)
 		cleared_biomes[e.biome] = true
 		warden_alive = false
+		warden_ref = null
 		if boss_lock_biome == e.biome:
 			boss_lock_biome = ""
 		hud.show_banner("%s is conquered — the seal breaks" % Config.BIOMES[e.biome].name, Color(0.95, 0.9, 0.7))
@@ -750,8 +764,9 @@ func _sim_report() -> void:
 	var kps: float = kills / maxf(elapsed, 0.001)
 	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)
 	var death_str := "%.0f" % Sim.death_time if Sim.death_time >= 0.0 else "survived"
-	print("SIM_RESULT time=%.0f lvl=%d spells=%d cleared=%d kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f death_at=%s enemies=%d" % [
-		elapsed, level, picked_skills.size(), cleared_biomes.size(), kills, kps, dps, Sim.damage_taken, death_str, enemies_root.get_child_count()])
+	var capped := " WALL_CAPPED" if Sim.wall_capped() else ""
+	print("SIM_RESULT time=%.0f lvl=%d spells=%d cleared=%d kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f death_at=%s enemies=%d%s" % [
+		elapsed, level, picked_skills.size(), cleared_biomes.size(), kills, kps, dps, Sim.damage_taken, death_str, enemies_root.get_child_count(), capped])
 	RunLog.finish("sim end", self)
 	get_tree().quit()
 

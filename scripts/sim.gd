@@ -10,10 +10,20 @@ extends Node
 var enabled := false
 var family := ""
 var duration := 30.0
+var wall_max := 45.0     # HARD wall-clock cap: a sim NEVER runs longer than this
+var _wall_start := 0
 
 var damage_dealt := 0.0
 var damage_taken := 0.0
 var death_time := -1.0  # when cumulative damage would have killed a 100hp caster
+
+
+func wall_elapsed() -> float:
+	return float(Time.get_ticks_msec() - _wall_start) / 1000.0
+
+
+func wall_capped() -> bool:
+	return wall_elapsed() >= wall_max
 
 
 func note_damage(amount: float) -> void:
@@ -24,10 +34,13 @@ func note_damage(amount: float) -> void:
 
 func _ready() -> void:
 	enabled = OS.has_environment("SIM")
+	_wall_start = Time.get_ticks_msec()
 	if OS.has_environment("SIM_FAM"):
 		family = OS.get_environment("SIM_FAM")
 	if OS.has_environment("SIM_TIME"):
 		duration = float(OS.get_environment("SIM_TIME"))
+	if OS.has_environment("SIM_WALL_MAX"):
+		wall_max = float(OS.get_environment("SIM_WALL_MAX"))
 	if enabled:
 		# Run as fast as the CPU can hold LOCKSTEP: physics is fixed-step in
 		# game time, and _process() below auto-throttles time_scale whenever
