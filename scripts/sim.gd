@@ -29,7 +29,16 @@ func _ready() -> void:
 	if OS.has_environment("SIM_TIME"):
 		duration = float(OS.get_environment("SIM_TIME"))
 	if enabled:
-		Engine.time_scale = 6.0
+		# Run as fast as the CPU allows. Physics stays fixed-step in GAME time,
+		# so higher speed changes wall-clock only — outcomes stay identical.
+		# Default chosen as the fastest speed that stays LOCKSTEP with realtime
+		# (verified against 6x baselines) — raise SIM_SPEED at your own risk;
+		# past the CPU's physics budget, process and physics clocks desync.
+		var speed := 10.0
+		if OS.has_environment("SIM_SPEED"):
+			speed = float(OS.get_environment("SIM_SPEED"))
+		Engine.time_scale = speed
+		Engine.max_physics_steps_per_frame = maxi(8, int(speed) + 8)
 
 
 func reset() -> void:

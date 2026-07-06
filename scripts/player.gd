@@ -243,8 +243,36 @@ func add_insight(fam: String, amount: float) -> void:
 		queue_redraw()
 
 
+var meta_bolt_bonus := 0  # Twin Bolt powerup, survives skill rebuilds
+
+
+## Wipe everything skills grant, so the remaining set can be re-applied cleanly
+## after forgetting one (skills and boost cards overlap — rebuild, don't reverse).
+func reset_skill_state() -> void:
+	has_nova = false
+	shield_max = 0.0
+	shield_regen = 0.0
+	shield_hp = 0.0
+	thorns_damage = 0.0
+	deflect_chance = 0.0
+	siphon_pct = 0.0
+	rot_radius = 0.0
+	rot_damage = 0.0
+	has_wither = false
+	has_frost_pulse = false
+	has_shatter = false
+	has_dread = false
+	crit_chance = 0.0
+	has_mark = false
+	dodge_chance = 0.0
+	wisp_count = 0
+	has_hex = false
+	bolt_count = 1 + meta_bolt_bonus
+	queue_redraw()
+
+
 ## Skill cards call this — nothing here is ever granted automatically.
-func unlock_skill(fam: String, key: String) -> void:
+func unlock_skill(fam: String, key: String, quiet: bool = false) -> void:
 	match key:
 		"nova":
 			has_nova = true
@@ -284,7 +312,8 @@ func unlock_skill(fam: String, key: String) -> void:
 			has_hex = true
 		"legion":
 			wisp_count = 2
-	RunLog.event("skill unlocked: %s/%s" % [fam, key])
+	if not quiet:
+		RunLog.event("skill unlocked: %s/%s" % [fam, key])
 	queue_redraw()
 
 

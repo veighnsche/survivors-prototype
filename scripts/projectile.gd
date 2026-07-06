@@ -35,7 +35,8 @@ func _ready() -> void:
 	queue_redraw()
 
 
-func _process(delta: float) -> void:
+func _physics_process(delta: float) -> void:
+	# Fixed-step motion: identical trajectories at any sim speed (no tunneling).
 	position += direction * speed * delta
 	life -= delta
 	if life <= 0.0:

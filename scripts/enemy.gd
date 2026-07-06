@@ -195,15 +195,23 @@ func _fire_shot(dir: Vector2) -> void:
 	get_parent().add_child(s)
 
 
+var _avoid_cached := Vector2.ZERO
 func _avoid_obstacles(dir: Vector2) -> Vector2:
+	# Raycast every 3rd tick per enemy (staggered) — same behavior, a third the
+	# physics cost, which raises the sim's faithful-speed ceiling.
+	if (Engine.get_physics_frames() + get_instance_id()) % 3 != 0:
+		return _avoid_cached if _avoid_cached != Vector2.ZERO else dir
 	var space := get_world_2d().direct_space_state
 	var q := PhysicsRayQueryParameters2D.create(global_position, global_position + dir * Config.ENEMY_AVOID_DIST, 16)
 	var hit := space.intersect_ray(q)
 	if hit:
 		var n: Vector2 = hit.normal
 		var slid := dir - n * dir.dot(n)
-		return slid.normalized() if slid.length() > 0.05 else Vector2(-n.y, n.x)
-	return dir
+		_avoid_cached = slid.normalized() if slid.length() > 0.05 else Vector2(-n.y, n.x)
+	else:
+		_avoid_cached = Vector2.ZERO
+		return dir
+	return _avoid_cached
 
 
 ## The full multiplier an incoming hit of this type would get right now

@@ -78,6 +78,9 @@ func _ready() -> void:
 	banish_charges = Config.BANISH_CHARGES
 
 	var map_seed := randi()
+	if Sim.enabled and OS.has_environment("SIM_SEED"):
+		map_seed = int(OS.get_environment("SIM_SEED"))
+		seed(map_seed)  # deterministic runs: same seed -> same world + same rolls
 	biome_map = BiomeMap.new(map_seed)
 	RunLog.start(map_seed)
 
@@ -190,7 +193,8 @@ func _apply_meta() -> void:
 	player.attack_speed_mult *= pow(0.96, Save.powerup_level("cooldown"))
 	player.armor += float(Save.powerup_level("armor"))
 	player.recovery += 0.2 * Save.powerup_level("recovery")
-	player.bolt_count += Save.powerup_level("amount")
+	player.meta_bolt_bonus = Save.powerup_level("amount")
+	player.bolt_count = 1 + player.meta_bolt_bonus
 	growth_mult = 1.0 + 0.08 * Save.powerup_level("growth")
 	greed_mult = 1.0 + 0.10 * Save.powerup_level("greed")
 
@@ -655,7 +659,8 @@ func _apply_choice(id: String) -> void:
 		upgrade_levels[id] = 1
 		for s in FAMILY_SKILLS[parts[1]]:
 			if s[0] == parts[2]:
-				picked_skills.append({"name": s[1], "color": Config.FAMILY_COLORS[parts[1]]})
+				picked_skills.append({"name": s[1], "color": Config.FAMILY_COLORS[parts[1]],
+					"fam": parts[1], "key": parts[2], "id": id})
 		player.unlock_skill(parts[1], parts[2])
 		return
 	if id == "heal":
@@ -667,6 +672,25 @@ func _apply_choice(id: String) -> void:
 	if def != null:
 		for lk in def.locks:
 			locked[lk] = true
+
+
+## Forget a committed skill (clicked in the spell list): frees the slot, and
+## the skill can be offered again later. Rebuild-not-reverse, so overlapping
+## boosts stay correct.
+func forget_skill(idx: int) -> void:
+	if idx < 0 or idx >= picked_skills.size():
+		return
+	var s: Dictionary = picked_skills[idx]
+	picked_skills.remove_at(idx)
+	upgrade_levels.erase(s.id)
+	player.reset_skill_state()
+	for t in picked_skills:
+		player.unlock_skill(t.fam, t.key, true)
+	for bid in ["ward_denser", "ward_sharper", "drain_thicker", "sight_keener"]:
+		for i in int(upgrade_levels.get(bid, 0)):
+			player.apply_upgrade(bid)
+	RunLog.event("skill FORGOTTEN: %s" % s.name)
+	Fx.floating_text(player.global_position + Vector2(0, -30), "Forgot %s" % s.name, Color(1.0, 0.5, 0.4))
 
 
 func grant_random_upgrade() -> String:
