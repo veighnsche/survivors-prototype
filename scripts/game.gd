@@ -533,8 +533,6 @@ func open_chest(pos: Vector2) -> void:
 
 # --- Vital progression -------------------------------------------------------------
 func add_xp(amount: float) -> void:
-	if Sim.enabled:
-		return
 	xp += amount * growth_mult
 	while xp >= xp_to_next:
 		xp -= xp_to_next
@@ -552,6 +550,17 @@ func _open_level_up() -> void:
 	pending_levelups -= 1
 	var cards := _draw_cards(3)
 	_log_offer(cards)
+	if Sim.enabled:
+		# the bot picks like a player: Spell > Boost > first offer
+		var pick = cards[0]
+		for c in cards:
+			if c.get("kind", "") == "Spell":
+				pick = c
+				break
+		_apply_choice(pick.id)
+		if pending_levelups > 0:
+			_open_level_up()
+		return
 	get_tree().paused = true
 	card_screen.show_cards(cards)
 
@@ -717,8 +726,8 @@ func _sim_report() -> void:
 	var kps: float = kills / maxf(elapsed, 0.001)
 	var dps: float = Sim.damage_dealt / maxf(elapsed, 0.001)
 	var death_str := "%.0f" % Sim.death_time if Sim.death_time >= 0.0 else "survived"
-	print("SIM_RESULT time=%.0f kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f death_at=%s enemies=%d" % [
-		elapsed, kills, kps, dps, Sim.damage_taken, death_str, enemies_root.get_child_count()])
+	print("SIM_RESULT time=%.0f lvl=%d spells=%d cleared=%d kills=%d kps=%.2f dps=%.1f dmg_taken=%.0f death_at=%s enemies=%d" % [
+		elapsed, level, picked_skills.size(), cleared_biomes.size(), kills, kps, dps, Sim.damage_taken, death_str, enemies_root.get_child_count()])
 	RunLog.finish("sim end", self)
 	get_tree().quit()
 

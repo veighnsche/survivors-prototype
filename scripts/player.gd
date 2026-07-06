@@ -166,14 +166,51 @@ func _input_vector() -> Vector2:
 	return v.limit_length(1.0)
 
 
+var _bot_dir := Vector2.RIGHT
+## Sim bot plays like a player: flee real pressure, hoover gems, chase beacons
+## (chests/pickups), otherwise explore outward.
 func _sim_bot_vector() -> Vector2:
 	if OS.has_environment("DBG_STAND"):
 		return Vector2.ZERO
-	var e := _nearest_enemy_in(99999.0)
-	if e == null:
-		return Vector2.RIGHT
-	var away := global_position - e.global_position
-	return away.normalized() if away.length() > 1.0 else Vector2.RIGHT
+
+	# 1. Threat pressure from close enemies.
+	var flee := Vector2.ZERO
+	var threats := 0
+	for e in get_tree().get_nodes_in_group("enemies"):
+		var d: float = global_position.distance_to(e.global_position)
+		if d < 160.0:
+			flee += (global_position - e.global_position) / maxf(d, 8.0)
+			threats += 1
+	if threats >= 3:
+		return flee.normalized()  # genuinely swarmed: just get out
+
+	# 2. Collect: nearest gem, else nearest beacon target (chest/pickup).
+	var tgt: Node2D = null
+	var best_d := 520.0 * 520.0
+	for g in get_tree().get_nodes_in_group("gems"):
+		var d2: float = global_position.distance_squared_to(g.global_position)
+		if d2 < best_d:
+			best_d = d2
+			tgt = g
+	if tgt == null:
+		best_d = 1200.0 * 1200.0
+		for p in get_tree().get_nodes_in_group("guided"):
+			var d2: float = global_position.distance_squared_to(p.global_position)
+			if d2 < best_d:
+				best_d = d2
+				tgt = p
+	if tgt != null:
+		var dir: Vector2 = (tgt.global_position - global_position).normalized()
+		if threats > 0:
+			dir = (dir + flee.normalized() * 0.8).normalized()
+		return dir
+
+	# 3. Explore: keep a heading, drift it occasionally, bias away from spawn.
+	if randf() < 0.008:
+		_bot_dir = (_bot_dir.rotated(randf_range(-1.2, 1.2)) + global_position.normalized() * 0.3).normalized()
+	if threats > 0:
+		return (_bot_dir + flee.normalized()).normalized()
+	return _bot_dir
 
 
 # --- Insight: surviving a biome awakens its basic attack -----------------------------
