@@ -11,7 +11,7 @@ G="/Applications/Godot.app/Contents/MacOS/Godot"
 cd "$(dirname "$0")"
 perl -e 'alarm shift; exec @ARGV' "$HARD" \
   env SIM=1 SIM_TIME=999 SIM_WALL_MAX="$WALL" SIM_SEED="${SIM_SEED:-777}" "$@" \
-  "$G" --headless res://main.tscn 2>&1 \
+  "$G" --headless res://scenes/main.tscn 2>&1 \
   | grep -viE "Godot Engine|Metal|Vulkan|ApplePersistence|^$" \
   | grep -E "SCRIPT ERROR|Parse Error|SIM_RESULT|threat_by|basic_casts|kills_by|insight_from|damage_by_type|WARDEN" \
   || echo "(no output — likely a load error above the grep, run raw to see)"

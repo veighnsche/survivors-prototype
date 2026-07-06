@@ -35,18 +35,29 @@ Placeholder art (drawn primitives) for now — sprite pass via a local ComfyUI p
 ## Project layout
 
 ```
-project.godot        # Godot project config (main scene, window, input)
-main.tscn            # Root scene (Node2D + game.gd); everything else is built in code
-scripts/
-  game.gd            # Run director: world, spawn timeline, gems+merging, XP/leveling, card flow
-  player.gd          # Movement, auto-attack, contact damage, fork abilities
-  enemy.gd           # Stat-driven beeline chaser
-  projectile.gd      # Straight auto-attack shot
-  gem.gd             # XP drop: idle/merge/attract/collect
-  upgrades.gd        # Upgrade pool definitions (id/rarity/max/locks)
-  card_screen.gd     # Level-up choice UI (runs while paused)
-  background_grid.gd # Scrolling grid so motion reads on the empty field
-  hud.gd             # XP bar, timer, HP, counts, death overlay
+project.godot          # Godot project config (main scene, window, autoloads)
+scenes/                # main.tscn + main_menu.tscn; everything else is built in code
+src/
+  autoload/            # Config (global tuning), Fx, Save, Sim, RunLog singletons
+  core/                # game.gd (run director), game_camera.gd
+  player/              # player.gd (the caster), sim_bot.gd (headless pilot)
+  cantrips/            # Cantrip base + ONE FILE PER basic attack (force_bolt, fireball...)
+  skills/<family>/     # Skill base + ONE FILE PER card skill (nova, aegis, wisp...)
+  families/            # Family base + one file per school (blast, ward, drain...)
+  biomes/              # Biome base + one file per region + biome_map.gd (world layout)
+  enemies/<biome>/     # Enemy base + ONE FILE PER creature (husk, roc, tunneler...)
+  loot/                # xp_gem, gold_coin, chest, Booster base + one file per booster
+  combat/              # projectile.gd (generic bolt; cantrips attach their riders)
+  world/               # terrain streamers: obstacles, border walls, floor loot, ground
+  fx/                  # ring_fx, chain_fx, damage_number, death_pop
+  ui/                  # hud, card_screen, attack_panel, affinity_wheel, compass...
+  meta/                # upgrades.gd (Vital card pool)
 ```
+
+Each creature, cantrip, skill, biome, family, and loot object is its own class in
+its own file; registries (`EnemyTypes`, `Cantrips`, `Families`, `Biomes`) map ids
+to scripts, and the base classes (`Enemy`, `Cantrip`, `Skill`, `Booster`) hold the
+shared plumbing. To add an enemy: subclass `Enemy` in `src/enemies/<biome>/`,
+register it in `enemy_types.gd`, add it to a biome roster.
 
 > ⚠️ **Tuning:** nearly every gameplay number is a first-pass placeholder. See the issue tracker — balance/feel items are labeled `tuning`.
